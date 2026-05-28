@@ -61,6 +61,17 @@ struct ReviewView: View {
 
                 Spacer()
 
+                // OCR retry button
+                if !state.isExtractingWithAI, let image = state.capturedImage {
+                    Button(action: { Task { await retryOCR(image: image) } }) {
+                        Label("OCR 识别", systemImage: "text.viewfinder")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.blue)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("用 Vision OCR 重新识别图像")
+                }
+
                 // AI retry button
                 if state.hasAPIKey && !state.isExtractingWithAI && !state.ocrResults.isEmpty {
                     Button(action: { Task { await retryAI() } }) {
@@ -184,6 +195,16 @@ struct ReviewView: View {
             if fieldValues[field] == nil {
                 fieldValues[field] = state.extractedFields[field]?.value ?? ""
             }
+        }
+    }
+
+    private func retryOCR(image: NSImage) async {
+        let results = await state.ocr.recognize(from: image)
+        state.ocrResults = results
+        let fields = state.extractor.extract(from: results)
+        state.extractedFields = fields
+        for (key, field) in fields {
+            fieldValues[key] = field.value
         }
     }
 
