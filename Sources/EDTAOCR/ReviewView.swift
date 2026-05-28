@@ -200,7 +200,12 @@ struct ReviewView: View {
 
     private func retryOCR() async {
         guard let imagePath = state.capturedImagePath else { return }
-        let results = await state.ocr.recognize(fromPath: imagePath)
+        // Clear first to force @Observable change detection
+        state.ocrResults = []
+        // Run OCR off the main actor
+        let results = await Task.detached(priority: .userInitiated) {
+            await state.ocr.recognize(fromPath: imagePath)
+        }.value
         state.ocrResults = results
         let fields = state.extractor.extract(from: results)
         state.extractedFields = fields
