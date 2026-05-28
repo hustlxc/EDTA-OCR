@@ -16,6 +16,13 @@ class CameraManager: NSObject {
     override init() {
         super.init()
         session.sessionPreset = .photo
+        // Stop camera on app quit to release hardware
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.session.stopRunning()
+        }
     }
 
     func checkPermission() async -> Bool {
