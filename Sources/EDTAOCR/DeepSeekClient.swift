@@ -9,7 +9,6 @@ struct DeepSeekClient: Sendable {
         let 性别: String?
         let 年龄: String?
         let 流水号: String?
-        let 子弹头编号: String?
         let 采血时间: String?
         let 科室: String?
         let 床号: String?
@@ -41,7 +40,6 @@ struct DeepSeekClient: Sendable {
         - 性别: gender, 男 or 女 only
         - 年龄: age in years, just the number
         - 流水号: serial number (8-20 digit or alphanumeric, often the longest number)
-        - 子弹头编号: bullet tube number (short alphanumeric code, sometimes labeled as 子弹头)
         - 采血时间: blood collection datetime (format: YYYY-MM-DD HH:MM or similar)
         - 科室: department name (ends with 科/室/部/中心 usually)
         - 床号: bed number (ends with 床 or digit+号)
