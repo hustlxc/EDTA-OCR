@@ -113,6 +113,16 @@ class DatabaseManager {
         return records
     }
 
+    func deleteRecord(serial: String) -> Bool {
+        guard let db = db, !serial.isEmpty else { return false }
+        let sql = "DELETE FROM records WHERE 流水号 = ?;"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, (serial as NSString).utf8String, -1, nil)
+        return sqlite3_step(stmt) == SQLITE_DONE
+    }
+
     func count() -> Int {
         guard let db = db else { return 0 }
         let sql = "SELECT COUNT(*) FROM records;"

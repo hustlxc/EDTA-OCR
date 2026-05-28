@@ -73,6 +73,11 @@ struct OCRProcessor: Sendable {
         }
     }
 
+    func deleteImage(serialNumber: String) {
+        let path = "\(OCRProcessor.capturesDir)/\(serialNumber).png"
+        try? FileManager.default.removeItem(atPath: path)
+    }
+
     func imageExistsInCaptures(serialNumber: String) -> Bool {
         let path = "\(OCRProcessor.capturesDir)/\(serialNumber).png"
         return FileManager.default.fileExists(atPath: path)
