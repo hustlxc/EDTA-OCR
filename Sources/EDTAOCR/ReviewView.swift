@@ -97,7 +97,7 @@ struct ReviewView: View {
                         Image(nsImage: image)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(maxWidth: 440, maxHeight: 520)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
@@ -106,7 +106,7 @@ struct ReviewView: View {
                     } else {
                         RoundedRectangle(cornerRadius: 6)
                             .fill(Color(nsColor: .controlBackgroundColor))
-                            .frame(maxWidth: 440, maxHeight: 520)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .overlay(Text("无图片").foregroundStyle(.secondary))
                     }
                 }
@@ -156,7 +156,7 @@ struct ReviewView: View {
                     }
                     .padding(16)
                 }
-                .frame(width: 420)
+                .frame(minWidth: 380, idealWidth: 420)
                 .background(Color(nsColor: .windowBackgroundColor))
             }
 

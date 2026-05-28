@@ -6,15 +6,21 @@ import AppKit
 @main
 struct EDTA_OCR_App: App {
     @State private var appState = AppState()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(appState)
                 .frame(minWidth: 960, minHeight: 700)
+                .onChange(of: scenePhase) { _, newPhase in
+                    if newPhase == .background || newPhase == .inactive {
+                        appState.camera.session.stopRunning()
+                    }
+                }
         }
         .windowResizability(.contentMinSize)
-        .defaultSize(width: 1000, height: 740)
+        .defaultSize(width: 1100, height: 780)
     }
 }
 
