@@ -3,14 +3,53 @@ import SwiftUI
 struct ReviewView: View {
     @Environment(AppState.self) private var state
     @State private var showSaveSuccess = false
-    @State private var fieldValues: [String: String] = [:]
+    @State private var name = ""
+    @State private var gender = "男"
+    @State private var age = ""
+    @State private var serialNumber = ""
+    @State private var collectionTime = ""
+    @State private var department = ""
+    @State private var bedNumber = ""
+    @State private var didLoadFields = false
 
     private let fieldOrder = ["姓名", "性别", "年龄", "流水号", "采血时间", "科室", "床号"]
-    private let fieldLabels: [String: String] = [
-        "姓名": "姓名", "性别": "性别", "年龄": "年龄",
-        "流水号": "流水号", "采血时间": "采血时间",
-        "科室": "科室", "床号": "床号"
-    ]
+    private let requiredFields = ["姓名", "流水号"]
+    private var recognizedFieldCount: Int {
+        fieldOrder.filter {
+            !value(for: $0).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }.count
+    }
+
+    private var missingRequiredFields: [String] {
+        requiredFields.filter {
+            value(for: $0).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    private var canSave: Bool { missingRequiredFields.isEmpty }
+
+    private var ocrButtonTitle: String {
+        state.capturedImagePath == nil ? "无截图路径" : "OCR 识别"
+    }
+
+    private var ocrButtonHelp: String {
+        state.capturedImagePath == nil
+            ? "没有可重新识别的截图路径，请重新拍照"
+            : "重新从当前截图执行 OCR"
+    }
+
+    private var aiButtonTitle: String {
+        if state.isExtractingWithAI { return "AI 识别中" }
+        if state.ocrResults.isEmpty { return "无 OCR 文本" }
+        return state.hasAPIKey ? "AI 识别" : "AI 未配置"
+    }
+
+    private var aiButtonHelp: String {
+        if state.isExtractingWithAI { return "正在调用 AI 识别" }
+        if state.ocrResults.isEmpty { return "请先完成 OCR 识别" }
+        if !state.hasAPIKey { return "请先在首页配置 DeepSeek API Key" }
+        return "重新调用 AI 识别并覆盖非空字段"
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,6 +68,9 @@ struct ReviewView: View {
                     Text("AI 已识别").font(.system(size: 11)).foregroundStyle(.purple)
                 }
                 Spacer()
+                Label("\(recognizedFieldCount)/\(fieldOrder.count) 个字段已填充", systemImage: "list.bullet.clipboard")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 4)
@@ -62,19 +104,89 @@ struct ReviewView: View {
                     // Right: Editable form
                     ScrollView {
                         VStack(alignment: .leading, spacing: 14) {
-                            ForEach(fieldOrder, id: \.self) { field in
-                                FieldRow(
-                                    label: fieldLabels[field] ?? field,
-                                    value: Binding(
-                                        get: { fieldValues[field] ?? state.extractedFields[field]?.value ?? "" },
-                                        set: { fieldValues[field] = $0 }
-                                    ),
-                                    confidence: state.extractedFields[field]?.confidence ?? "low",
-                                    isInferred: state.extractedFields[field]?.isInferred ?? false,
-                                    isAIExtracted: state.aiExtractedFields?[field] != nil,
-                                    isGender: field == "性别"
-                                )
+                            HStack(alignment: .firstTextBaseline) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("核对字段")
+                                        .font(.system(size: 16, weight: .semibold))
+                                    Text("姓名和流水号为必填项，保存前请核对。")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text("\(recognizedFieldCount)/\(fieldOrder.count)")
+                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(.secondary)
                             }
+
+                            FieldRow(
+                                label: "姓名",
+                                value: $name,
+                                confidence: confidence(for: "姓名"),
+                                isInferred: isInferred("姓名"),
+                                isAIExtracted: isAIExtracted("姓名"),
+                                isRequired: true,
+                                isGender: false
+                            )
+
+                            FieldRow(
+                                label: "性别",
+                                value: $gender,
+                                confidence: confidence(for: "性别"),
+                                isInferred: isInferred("性别"),
+                                isAIExtracted: isAIExtracted("性别"),
+                                isRequired: false,
+                                isGender: true
+                            )
+
+                            FieldRow(
+                                label: "年龄",
+                                value: $age,
+                                confidence: confidence(for: "年龄"),
+                                isInferred: isInferred("年龄"),
+                                isAIExtracted: isAIExtracted("年龄"),
+                                isRequired: false,
+                                isGender: false
+                            )
+
+                            FieldRow(
+                                label: "流水号",
+                                value: $serialNumber,
+                                confidence: confidence(for: "流水号"),
+                                isInferred: isInferred("流水号"),
+                                isAIExtracted: isAIExtracted("流水号"),
+                                isRequired: true,
+                                isGender: false
+                            )
+
+                            FieldRow(
+                                label: "采血时间",
+                                value: $collectionTime,
+                                confidence: confidence(for: "采血时间"),
+                                isInferred: isInferred("采血时间"),
+                                isAIExtracted: isAIExtracted("采血时间"),
+                                isRequired: false,
+                                isGender: false
+                            )
+
+                            FieldRow(
+                                label: "科室",
+                                value: $department,
+                                confidence: confidence(for: "科室"),
+                                isInferred: isInferred("科室"),
+                                isAIExtracted: isAIExtracted("科室"),
+                                isRequired: false,
+                                isGender: false
+                            )
+
+                            FieldRow(
+                                label: "床号",
+                                value: $bedNumber,
+                                confidence: confidence(for: "床号"),
+                                isInferred: isInferred("床号"),
+                                isAIExtracted: isAIExtracted("床号"),
+                                isRequired: false,
+                                isGender: false
+                            )
 
                             Divider().padding(.vertical, 8)
 
@@ -114,22 +226,27 @@ struct ReviewView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.large)
 
-                if state.capturedImagePath != nil {
-                    Button(action: { Task { @MainActor in await retryOCR() } }) {
-                        Label("OCR 识别", systemImage: "text.viewfinder")
-                            .frame(width: 110)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
+                Button(action: handleOCRButton) {
+                    Label(ocrButtonTitle, systemImage: "text.viewfinder")
+                        .frame(width: 110)
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .help(ocrButtonHelp)
 
-                if state.hasAPIKey && !state.isExtractingWithAI && !state.ocrResults.isEmpty {
-                    Button(action: { Task { await retryAI() } }) {
-                        Label("AI 识别", systemImage: "sparkles")
-                            .frame(width: 110)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
+                Button(action: handleAIButton) {
+                    Label(aiButtonTitle, systemImage: "sparkles")
+                        .frame(width: 110)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .disabled(state.isExtractingWithAI || state.ocrResults.isEmpty)
+                .help(aiButtonHelp)
+
+                if !canSave {
+                    Label("请补全: \(missingRequiredFields.joined(separator: "、"))", systemImage: "exclamationmark.triangle")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.orange)
                 }
 
                 Spacer()
@@ -140,6 +257,7 @@ struct ReviewView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+                .disabled(!canSave)
                 .keyboardShortcut(.return, modifiers: [.command])
             }
             .padding(.horizontal, 24)
@@ -147,16 +265,103 @@ struct ReviewView: View {
             .background(Color(nsColor: .controlBackgroundColor))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear { syncFieldValues() }
+        .onAppear {
+            if !didLoadFields {
+                syncFieldValues()
+                didLoadFields = true
+            }
+        }
         .sheet(isPresented: $showSaveSuccess) { saveSuccessSheet }
     }
 
     private func syncFieldValues() {
-        for field in fieldOrder {
-            if fieldValues[field] == nil {
-                fieldValues[field] = state.extractedFields[field]?.value ?? ""
-            }
+        name = state.extractedFields["姓名"]?.value ?? ""
+        let extractedGender = state.extractedFields["性别"]?.value ?? ""
+        gender = extractedGender == "女" ? "女" : "男"
+        age = state.extractedFields["年龄"]?.value ?? ""
+        serialNumber = state.extractedFields["流水号"]?.value ?? ""
+        collectionTime = state.extractedFields["采血时间"]?.value ?? ""
+        department = state.extractedFields["科室"]?.value ?? ""
+        bedNumber = state.extractedFields["床号"]?.value ?? ""
+    }
+
+    private func value(for field: String) -> String {
+        switch field {
+        case "姓名": return name
+        case "性别": return gender
+        case "年龄": return age
+        case "流水号": return serialNumber
+        case "采血时间": return collectionTime
+        case "科室": return department
+        case "床号": return bedNumber
+        default: return ""
         }
+    }
+
+    private func confidence(for field: String) -> String {
+        state.extractedFields[field]?.confidence ?? "low"
+    }
+
+    private func isInferred(_ field: String) -> Bool {
+        state.extractedFields[field]?.isInferred ?? false
+    }
+
+    private func isAIExtracted(_ field: String) -> Bool {
+        state.aiExtractedFields?[field] != nil
+    }
+
+    private func applyExtractedFieldsToForm(_ fields: [String: ExtractedField]) {
+        name = fields["姓名"]?.value ?? ""
+        if let extractedGender = fields["性别"]?.value, !extractedGender.isEmpty {
+            gender = extractedGender == "女" ? "女" : "男"
+        }
+        age = fields["年龄"]?.value ?? ""
+        serialNumber = fields["流水号"]?.value ?? ""
+        collectionTime = fields["采血时间"]?.value ?? ""
+        department = fields["科室"]?.value ?? ""
+        bedNumber = fields["床号"]?.value ?? ""
+    }
+
+    private func applyAIFieldsToForm(_ fields: [String: ExtractedField]) {
+        if let value = fields["姓名"]?.value { name = value }
+        if let value = fields["性别"]?.value, !value.isEmpty { gender = value == "女" ? "女" : "男" }
+        if let value = fields["年龄"]?.value { age = value }
+        if let value = fields["流水号"]?.value { serialNumber = value }
+        if let value = fields["采血时间"]?.value { collectionTime = value }
+        if let value = fields["科室"]?.value { department = value }
+        if let value = fields["床号"]?.value { bedNumber = value }
+    }
+
+    private func handleAIButton() {
+        guard !state.ocrResults.isEmpty else { return }
+        guard state.hasAPIKey else {
+            let alert = NSAlert()
+            alert.messageText = "AI 未配置"
+            alert.informativeText = "请回到首页配置 DeepSeek API Key，或通过 DEEPSEEK_API_KEY 环境变量启动。"
+            alert.addButton(withTitle: "去配置")
+            alert.addButton(withTitle: "取消")
+            if alert.runModal() == .alertFirstButtonReturn {
+                state.screen = .home
+            }
+            return
+        }
+        Task { await retryAI() }
+    }
+
+    private func handleOCRButton() {
+        guard state.capturedImagePath != nil else {
+            let alert = NSAlert()
+            alert.messageText = "没有截图路径"
+            alert.informativeText = "当前没有可重新识别的截图文件。请返回摄像头重新拍照。"
+            alert.addButton(withTitle: "重新拍照")
+            alert.addButton(withTitle: "取消")
+            if alert.runModal() == .alertFirstButtonReturn {
+                state.reset()
+                state.screen = .camera
+            }
+            return
+        }
+        Task { @MainActor in await retryOCR() }
     }
 
     private func retryOCR() async {
@@ -168,9 +373,7 @@ struct ReviewView: View {
         state.ocrResults = results
         let fields = state.extractor.extract(from: results)
         state.extractedFields = fields
-        for (key, field) in fields {
-            fieldValues[key] = field.value
-        }
+        applyExtractedFieldsToForm(fields)
     }
 
     private func retryAI() async {
@@ -193,8 +396,8 @@ struct ReviewView: View {
             }
             for (key, field) in fields {
                 state.extractedFields[key] = field
-                fieldValues[key] = field.value
             }
+            applyAIFieldsToForm(fields)
             state.aiExtractedFields = fields
         } catch {
             state.aiError = error.localizedDescription
@@ -203,21 +406,21 @@ struct ReviewView: View {
     }
 
     private func saveRecord() {
-        let name = fieldValues["姓名"]?.trimmingCharacters(in: .whitespaces) ?? ""
-        guard !name.isEmpty else {
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        let serial = serialNumber.trimmingCharacters(in: .whitespaces)
+        guard !trimmedName.isEmpty, !serial.isEmpty else {
             let alert = NSAlert()
             alert.messageText = "验证提示"
-            alert.informativeText = "姓名不能为空，请填写后再保存。"
+            alert.informativeText = "姓名和流水号不能为空，请填写后再保存。"
             alert.runModal()
             return
         }
 
-        let gender = fieldValues["性别"]?.trimmingCharacters(in: .whitespaces) ?? ""
-        let age = fieldValues["年龄"]?.trimmingCharacters(in: .whitespaces) ?? ""
-        let serial = fieldValues["流水号"]?.trimmingCharacters(in: .whitespaces) ?? ""
-        let time = fieldValues["采血时间"]?.trimmingCharacters(in: .whitespaces) ?? ""
-        let dept = fieldValues["科室"]?.trimmingCharacters(in: .whitespaces) ?? ""
-        let bed = fieldValues["床号"]?.trimmingCharacters(in: .whitespaces) ?? ""
+        let trimmedGender = gender.trimmingCharacters(in: .whitespaces)
+        let trimmedAge = age.trimmingCharacters(in: .whitespaces)
+        let time = collectionTime.trimmingCharacters(in: .whitespaces)
+        let dept = department.trimmingCharacters(in: .whitespaces)
+        let bed = bedNumber.trimmingCharacters(in: .whitespaces)
 
         let imageExists = !serial.isEmpty && state.ocr.imageExistsInCaptures(serialNumber: serial)
         let recordExists = state.db.serialExists(serial)
@@ -237,14 +440,14 @@ struct ReviewView: View {
 
         let rawText = state.ocrResults.map(\.text).joined(separator: "\n")
         let ok = state.db.upsert(
-            name: name, gender: gender, age: age, serialNumber: serial,
+            name: trimmedName, gender: trimmedGender, age: trimmedAge, serialNumber: serial,
             collectionTime: time, department: dept, bedNumber: bed,
             rawOCRText: rawText
         )
 
         if ok {
             state.lastSavedRecord = Record(
-                id: 0, name: name, gender: gender, age: age,
+                id: 0, name: trimmedName, gender: trimmedGender, age: trimmedAge,
                 serialNumber: serial, collectionTime: time,
                 department: dept, bedNumber: bed,
                 rawOCRText: rawText, savedAt: ""
@@ -272,17 +475,17 @@ struct ReviewView: View {
                 Image(systemName: "checkmark.circle.fill").font(.system(size: 44)).foregroundColor(.green).padding(.top, 28)
                 Text("记录已保存").font(.system(size: 18, weight: .bold))
                 VStack(alignment: .leading, spacing: 6) {
-                    infoRow("姓名:", fieldValues["姓名"] ?? "")
-                    infoRow("性别:", fieldValues["性别"] ?? "")
-                    infoRow("年龄:", fieldValues["年龄"] ?? "")
-                    infoRow("流水号:", fieldValues["流水号"] ?? "")
-                    infoRow("科室:", fieldValues["科室"] ?? "")
-                    infoRow("床号:", fieldValues["床号"] ?? "")
-                    infoRow("采血时间:", fieldValues["采血时间"] ?? "")
+                    infoRow("姓名:", name)
+                    infoRow("性别:", gender)
+                    infoRow("年龄:", age)
+                    infoRow("流水号:", serialNumber)
+                    infoRow("科室:", department)
+                    infoRow("床号:", bedNumber)
+                    infoRow("采血时间:", collectionTime)
                 }
                 .font(.system(size: 13)).padding(.horizontal, 32)
                 HStack(spacing: 16) {
-                    Button("继续录入") { showSaveSuccess = false; state.reset(); state.screen = .home }
+                    Button("继续录入") { showSaveSuccess = false; state.reset(); state.screen = .camera }
                         .buttonStyle(.borderedProminent).controlSize(.large).frame(width: 120)
                     Button("查看历史") { showSaveSuccess = false; state.screen = .history }
                         .buttonStyle(.bordered).controlSize(.large).frame(width: 120)
@@ -309,13 +512,20 @@ struct FieldRow: View {
     let confidence: String
     let isInferred: Bool
     let isAIExtracted: Bool
+    let isRequired: Bool
     let isGender: Bool
 
     var body: some View {
         HStack(spacing: 8) {
-            Text("\(label):")
-                .font(.system(size: 13, weight: .semibold))
-                .frame(width: 64, alignment: .trailing)
+            HStack(spacing: 2) {
+                Text(label)
+                if isRequired {
+                    Text("*").foregroundStyle(.red)
+                }
+                Text(":")
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .frame(width: 64, alignment: .trailing)
 
             if isGender {
                 Picker("", selection: $value) {
@@ -325,12 +535,44 @@ struct FieldRow: View {
                 .pickerStyle(.segmented)
                 .frame(width: 120)
             } else {
-                TextField("", text: $value)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 14))
+                EditableTextField(text: $value)
                     .frame(maxWidth: 220)
+                    .frame(height: 28)
             }
-            confidenceIcon.frame(width: 50)
+            confidenceIcon.frame(width: 58, alignment: .leading)
+
+            Button(action: openEditDialog) {
+                Image(systemName: "pencil")
+                    .font(.system(size: 11))
+            }
+            .buttonStyle(.borderless)
+            .help("编辑\(label)")
+        }
+    }
+
+    private func openEditDialog() {
+        let alert = NSAlert()
+        alert.messageText = "编辑\(label)"
+        alert.informativeText = isGender ? "请输入“男”或“女”。" : "修改后点击确定。"
+        alert.addButton(withTitle: "确定")
+        alert.addButton(withTitle: "取消")
+
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 28))
+        input.stringValue = value
+        input.isEditable = true
+        input.isSelectable = true
+        input.isEnabled = true
+        input.usesSingleLineMode = true
+        alert.accessoryView = input
+        alert.window.initialFirstResponder = input
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            let newValue = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if isGender {
+                value = newValue == "女" ? "女" : "男"
+            } else {
+                value = newValue
+            }
         }
     }
 
@@ -347,7 +589,20 @@ struct FieldRow: View {
                 .padding(.horizontal, 4).padding(.vertical, 2)
                 .background(Capsule().stroke(.orange, lineWidth: 1))
         } else {
-            Circle().fill(confidenceColor).frame(width: 10, height: 10)
+            HStack(spacing: 4) {
+                Circle().fill(confidenceColor).frame(width: 8, height: 8)
+                Text(confidenceText)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var confidenceText: String {
+        switch confidence {
+        case "high": return "高"
+        case "medium": return "中"
+        default: return "低"
         }
     }
 
@@ -356,6 +611,61 @@ struct FieldRow: View {
         case "high":   return .green
         case "medium": return .orange
         default:       return .red
+        }
+    }
+}
+
+// MARK: - AppKit Editable Text Field
+
+struct EditableTextField: NSViewRepresentable {
+    @Binding var text: String
+
+    func makeNSView(context: Context) -> NSTextField {
+        let textField = NSTextField(string: text)
+        textField.delegate = context.coordinator
+        textField.isEditable = true
+        textField.isSelectable = true
+        textField.isEnabled = true
+        textField.isBezeled = true
+        textField.bezelStyle = .roundedBezel
+        textField.drawsBackground = true
+        textField.backgroundColor = .textBackgroundColor
+        textField.font = .systemFont(ofSize: 14)
+        textField.lineBreakMode = .byTruncatingTail
+        textField.usesSingleLineMode = true
+        textField.focusRingType = .default
+        return textField
+    }
+
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        context.coordinator.text = $text
+        if nsView.currentEditor() == nil, nsView.stringValue != text {
+            nsView.stringValue = text
+        }
+        nsView.isEditable = true
+        nsView.isSelectable = true
+        nsView.isEnabled = true
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    final class Coordinator: NSObject, NSTextFieldDelegate {
+        var text: Binding<String>
+
+        init(text: Binding<String>) {
+            self.text = text
+        }
+
+        func controlTextDidChange(_ obj: Notification) {
+            guard let textField = obj.object as? NSTextField else { return }
+            text.wrappedValue = textField.stringValue
+        }
+
+        func controlTextDidEndEditing(_ obj: Notification) {
+            guard let textField = obj.object as? NSTextField else { return }
+            text.wrappedValue = textField.stringValue
         }
     }
 }

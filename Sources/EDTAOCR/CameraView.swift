@@ -5,6 +5,7 @@ struct CameraView: View {
     @State private var permissionChecked = false
     @State private var overlayMessage = "按空格键或点击下方按钮拍照"
     @State private var showOverlay = true
+    @State private var isCapturing = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -99,11 +100,12 @@ struct CameraView: View {
                 .keyboardShortcut(.escape, modifiers: [])
 
                 Button(action: capture) {
-                    Label("拍照识别", systemImage: "camera.fill")
+                    Label(isCapturing ? "正在处理" : "拍照识别", systemImage: "camera.fill")
                         .frame(width: 150)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+                .disabled(isCapturing)
                 .keyboardShortcut(.space, modifiers: [])
             }
             .padding(.vertical, 16)
@@ -113,11 +115,15 @@ struct CameraView: View {
     }
 
     private func capture() {
+        guard !isCapturing else { return }
+        isCapturing = true
         overlayMessage = "正在识别文字..."
         showOverlay = true
         state.camera.capturePhoto { image in
             guard let image = image else {
-                overlayMessage = "拍照失败，请重试"
+                overlayMessage = state.camera.captureError ?? "拍照失败，请重试"
+                showOverlay = true
+                isCapturing = false
                 return
             }
             state.capturedImage = image
@@ -138,6 +144,7 @@ struct CameraView: View {
                     await runDeepSeekExtraction(results: results)
                 }
 
+                isCapturing = false
                 state.screen = .review
             }
         }

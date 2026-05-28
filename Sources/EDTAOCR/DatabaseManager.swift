@@ -5,9 +5,7 @@ class DatabaseManager {
     private var db: OpaquePointer?
 
     init() {
-        // Use current working directory (where user launches from)
-        let dbDir = FileManager.default.currentDirectoryPath
-        let dbPath = "\(dbDir)/edta_ocr.db"
+        let dbPath = AppPaths.path("edta_ocr.db")
         if sqlite3_open(dbPath, &db) != SQLITE_OK {
             print("Failed to open database: \(String(cString: sqlite3_errmsg(db)))")
             db = nil
@@ -61,7 +59,7 @@ class DatabaseManager {
                 collectionTime: String, department: String, bedNumber: String,
                 rawOCRText: String) -> Bool {
         guard let db = db else { return false }
-        if serialExists(serialNumber) {
+        if !serialNumber.isEmpty && serialExists(serialNumber) {
             let del = "DELETE FROM records WHERE 流水号 = ?;"
             var delStmt: OpaquePointer?
             if sqlite3_prepare_v2(db, del, -1, &delStmt, nil) == SQLITE_OK {
@@ -99,6 +97,53 @@ class DatabaseManager {
         defer { sqlite3_finalize(stmt) }
 
         sqlite3_bind_int(stmt, 1, Int32(limit))
+
+        var records: [Record] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            records.append(Record(
+                id: Int(sqlite3_column_int(stmt, 0)),
+                name: cstring(stmt, 1),
+                gender: cstring(stmt, 2),
+                age: cstring(stmt, 3),
+                serialNumber: cstring(stmt, 4),
+                collectionTime: cstring(stmt, 5),
+                department: cstring(stmt, 6),
+                bedNumber: cstring(stmt, 7),
+                rawOCRText: cstring(stmt, 8),
+                savedAt: cstring(stmt, 9)
+            ))
+        }
+        return records
+    }
+
+    func search(_ query: String, limit: Int = 200) -> [Record] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return fetchRecent(limit: limit) }
+        guard let db = db else { return [] }
+
+        let sql = """
+        SELECT * FROM records
+        WHERE 姓名 LIKE ?
+           OR 性别 LIKE ?
+           OR 年龄 LIKE ?
+           OR 流水号 LIKE ?
+           OR 采血时间 LIKE ?
+           OR 科室 LIKE ?
+           OR 床号 LIKE ?
+           OR 原始OCR文本 LIKE ?
+           OR 录入时间 LIKE ?
+        ORDER BY id DESC
+        LIMIT ?;
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+        defer { sqlite3_finalize(stmt) }
+
+        let pattern = "%\(trimmed)%"
+        for idx in 1...9 {
+            sqlite3_bind_text(stmt, Int32(idx), (pattern as NSString).utf8String, -1, nil)
+        }
+        sqlite3_bind_int(stmt, 10, Int32(limit))
 
         var records: [Record] = []
         while sqlite3_step(stmt) == SQLITE_ROW {

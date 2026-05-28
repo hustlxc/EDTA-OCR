@@ -12,6 +12,8 @@ class CameraManager: NSObject {
 
     private var photoOutput = AVCapturePhotoOutput()
     private var captureCompletion: ((NSImage?) -> Void)?
+    private var activeCaptureID: UUID?
+    private var preferredPhotoDimensions: CMVideoDimensions?
 
     override init() {
         super.init()
@@ -46,15 +48,26 @@ class CameraManager: NSObject {
     }
 
     func setupCamera() {
+        if !session.inputs.isEmpty || !session.outputs.isEmpty {
+            return
+        }
+
         guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .unspecified),
               let input = try? AVCaptureDeviceInput(device: device),
               session.canAddInput(input) else {
             captureError = "未检测到摄像头"
             return
         }
+
+        configureCameraDevice(device)
+
         session.addInput(input)
         if session.canAddOutput(photoOutput) {
             session.addOutput(photoOutput)
+            photoOutput.maxPhotoQualityPrioritization = .quality
+            if let preferredPhotoDimensions {
+                photoOutput.maxPhotoDimensions = preferredPhotoDimensions
+            }
         }
     }
 
@@ -71,10 +84,56 @@ class CameraManager: NSObject {
     }
 
     func capturePhoto(completion: @escaping (NSImage?) -> Void) {
+        guard captureCompletion == nil else {
+            completion(nil)
+            return
+        }
+
+        let captureID = UUID()
+        activeCaptureID = captureID
         captureCompletion = completion
         let settings = AVCapturePhotoSettings()
         settings.flashMode = .off
+        settings.photoQualityPrioritization = .quality
+        if let preferredPhotoDimensions {
+            settings.maxPhotoDimensions = preferredPhotoDimensions
+        }
         photoOutput.capturePhoto(with: settings, delegate: self)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+            guard let self, self.activeCaptureID == captureID else { return }
+            self.captureError = "拍照超时，请重试"
+            self.finishCapture(nil)
+        }
+    }
+
+    private func configureCameraDevice(_ device: AVCaptureDevice) {
+        preferredPhotoDimensions = bestPhotoDimensions(for: device.activeFormat)
+        do {
+            try device.lockForConfiguration()
+            if device.isFocusModeSupported(.continuousAutoFocus) {
+                device.focusMode = .continuousAutoFocus
+            }
+            if device.isExposureModeSupported(.continuousAutoExposure) {
+                device.exposureMode = .continuousAutoExposure
+            }
+            device.unlockForConfiguration()
+        } catch {
+            captureError = "摄像头高清配置失败: \(error.localizedDescription)"
+        }
+    }
+
+    private func finishCapture(_ image: NSImage?) {
+        let completion = captureCompletion
+        captureCompletion = nil
+        activeCaptureID = nil
+        completion?(image)
+    }
+
+    private func bestPhotoDimensions(for format: AVCaptureDevice.Format) -> CMVideoDimensions? {
+        format.supportedMaxPhotoDimensions.max {
+            (Int($0.width) * Int($0.height)) < (Int($1.width) * Int($1.height))
+        }
     }
 }
 
@@ -85,7 +144,7 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
         guard error == nil,
               let cgImage = photo.cgImageRepresentation() else {
             Task { @MainActor [weak self] in
-                self?.captureCompletion?(nil)
+                self?.finishCapture(nil)
             }
             return
         }
@@ -93,7 +152,7 @@ extension CameraManager: AVCapturePhotoCaptureDelegate {
         let image = NSImage(cgImage: cgImage, size: size)
 
         Task { @MainActor [weak self] in
-            self?.captureCompletion?(image)
+            self?.finishCapture(image)
         }
     }
 }

@@ -74,7 +74,7 @@ struct OCRProcessor: Sendable {
     /// Copy the temp image to the captures/ folder, named by serial number.
     /// Returns the destination path on success.
     static let capturesDir: String = {
-        let dir = "\(FileManager.default.currentDirectoryPath)/captures"
+        let dir = AppPaths.path("captures")
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true, attributes: nil)
         return dir
     }()
@@ -100,6 +100,11 @@ struct OCRProcessor: Sendable {
     func deleteImage(serialNumber: String) {
         let path = "\(OCRProcessor.capturesDir)/\(serialNumber).png"
         try? FileManager.default.removeItem(atPath: path)
+    }
+
+    func capturedImagePath(serialNumber: String) -> String? {
+        let path = "\(OCRProcessor.capturesDir)/\(serialNumber).png"
+        return FileManager.default.fileExists(atPath: path) ? path : nil
     }
 
     func imageExistsInCaptures(serialNumber: String) -> Bool {
