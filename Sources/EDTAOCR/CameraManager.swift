@@ -64,7 +64,7 @@ class CameraManager: NSObject {
         session.addInput(input)
         if session.canAddOutput(photoOutput) {
             session.addOutput(photoOutput)
-            photoOutput.maxPhotoQualityPrioritization = .balanced
+            photoOutput.maxPhotoQualityPrioritization = .quality
             if let preferredPhotoDimensions {
                 photoOutput.maxPhotoDimensions = preferredPhotoDimensions
             }
@@ -94,13 +94,13 @@ class CameraManager: NSObject {
         captureCompletion = completion
         let settings = AVCapturePhotoSettings()
         settings.flashMode = .off
-        settings.photoQualityPrioritization = .balanced
+        settings.photoQualityPrioritization = .quality
         if let preferredPhotoDimensions {
             settings.maxPhotoDimensions = preferredPhotoDimensions
         }
         photoOutput.capturePhoto(with: settings, delegate: self)
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
             guard let self, self.activeCaptureID == captureID else { return }
             self.captureError = "拍照超时，请重试"
             self.finishCapture(nil)
@@ -131,7 +131,7 @@ class CameraManager: NSObject {
     }
 
     private func bestPhotoDimensions(for format: AVCaptureDevice.Format) -> CMVideoDimensions? {
-        let stableMaxPixels = 4_000_000
+        let stableMaxPixels = 12_000_000
         let supported = format.supportedMaxPhotoDimensions
         let stable = supported.filter { Int($0.width) * Int($0.height) <= stableMaxPixels }
         let candidates = stable.isEmpty ? supported : stable
