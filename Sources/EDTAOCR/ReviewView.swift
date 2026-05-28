@@ -7,10 +7,10 @@ struct ReviewView: View {
     // Editable field values
     @State private var fieldValues: [String: String] = [:]
 
-    private let fieldOrder = ["姓名", "性别", "年龄", "barcode", "采血时间", "科室", "床号"]
+    private let fieldOrder = ["姓名", "性别", "年龄", "采血流水号", "采血时间", "科室", "床号"]
     private let fieldLabels: [String: String] = [
         "姓名": "姓名", "性别": "性别", "年龄": "年龄",
-        "barcode": "条形码", "采血时间": "采血时间",
+        "采血流水号": "采血流水号", "采血时间": "采血时间",
         "科室": "科室", "床号": "床号"
     ]
     private let genderOptions = ["男", "女"]
@@ -158,13 +158,13 @@ struct ReviewView: View {
 
         let gender = fieldValues["性别"]?.trimmingCharacters(in: .whitespaces) ?? ""
         let age = fieldValues["年龄"]?.trimmingCharacters(in: .whitespaces) ?? ""
-        let barcode = fieldValues["barcode"]?.trimmingCharacters(in: .whitespaces) ?? ""
+        let serial = fieldValues["采血流水号"]?.trimmingCharacters(in: .whitespaces) ?? ""
         let time = fieldValues["采血时间"]?.trimmingCharacters(in: .whitespaces) ?? ""
         let dept = fieldValues["科室"]?.trimmingCharacters(in: .whitespaces) ?? ""
         let bed = fieldValues["床号"]?.trimmingCharacters(in: .whitespaces) ?? ""
 
         let ok = state.db.insert(
-            name: name, gender: gender, age: age, barcode: barcode,
+            name: name, gender: gender, age: age, serialNumber: serial,
             collectionTime: time, department: dept, bedNumber: bed
         )
 
@@ -200,7 +200,7 @@ struct ReviewView: View {
                     infoRow("姓名:", fieldValues["姓名"] ?? "")
                     infoRow("性别:", fieldValues["性别"] ?? "")
                     infoRow("年龄:", fieldValues["年龄"] ?? "")
-                    infoRow("条形码:", fieldValues["barcode"] ?? "")
+                    infoRow("采血流水号:", fieldValues["采血流水号"] ?? "")
                     infoRow("科室:", fieldValues["科室"] ?? "")
                     infoRow("床号:", fieldValues["床号"] ?? "")
                     infoRow("采血时间:", fieldValues["采血时间"] ?? "")

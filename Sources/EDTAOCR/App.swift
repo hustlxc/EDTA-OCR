@@ -72,7 +72,7 @@ struct Record: Identifiable {
     let name: String
     let gender: String
     let age: String
-    let barcode: String
+    let serialNumber: String
     let collectionTime: String
     let department: String
     let bedNumber: String

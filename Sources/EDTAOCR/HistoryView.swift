@@ -54,7 +54,7 @@ struct HistoryView: View {
                         .width(40)
                     TableColumn("年龄") { Text($0.age).font(.system(size: 12)) }
                         .width(40)
-                    TableColumn("条形码") { Text($0.barcode).font(.system(size: 11, design: .monospaced)) }
+                    TableColumn("采血流水号") { Text($0.serialNumber).font(.system(size: 11, design: .monospaced)) }
                         .width(120)
                     TableColumn("采血时间") { Text($0.collectionTime).font(.system(size: 11)) }
                         .width(130)

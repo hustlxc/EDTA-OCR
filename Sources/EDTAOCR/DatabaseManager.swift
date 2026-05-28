@@ -27,13 +27,13 @@ class DatabaseManager {
             姓名 TEXT DEFAULT '',
             性别 TEXT DEFAULT '',
             年龄 TEXT DEFAULT '',
-            barcode TEXT DEFAULT '',
+            采血流水号 TEXT DEFAULT '',
             采血时间 TEXT DEFAULT '',
             科室 TEXT DEFAULT '',
             床号 TEXT DEFAULT '',
             录入数据库时间 TEXT DEFAULT (datetime('now','localtime'))
         );
-        CREATE INDEX IF NOT EXISTS idx_barcode ON records(barcode);
+        CREATE INDEX IF NOT EXISTS idx_serial ON records(采血流水号);
         CREATE INDEX IF NOT EXISTS idx_time ON records(录入数据库时间);
         """
         if sqlite3_exec(db, sql, nil, nil, nil) != SQLITE_OK {
@@ -41,11 +41,11 @@ class DatabaseManager {
         }
     }
 
-    func insert(name: String, gender: String, age: String, barcode: String,
+    func insert(name: String, gender: String, age: String, serialNumber: String,
                 collectionTime: String, department: String, bedNumber: String) -> Bool {
         guard let db = db else { return false }
         let sql = """
-        INSERT INTO records (姓名, 性别, 年龄, barcode, 采血时间, 科室, 床号)
+        INSERT INTO records (姓名, 性别, 年龄, 采血流水号, 采血时间, 科室, 床号)
         VALUES (?, ?, ?, ?, ?, ?, ?);
         """
         var stmt: OpaquePointer?
@@ -55,7 +55,7 @@ class DatabaseManager {
         sqlite3_bind_text(stmt, 1, (name as NSString).utf8String, -1, nil)
         sqlite3_bind_text(stmt, 2, (gender as NSString).utf8String, -1, nil)
         sqlite3_bind_text(stmt, 3, (age as NSString).utf8String, -1, nil)
-        sqlite3_bind_text(stmt, 4, (barcode as NSString).utf8String, -1, nil)
+        sqlite3_bind_text(stmt, 4, (serialNumber as NSString).utf8String, -1, nil)
         sqlite3_bind_text(stmt, 5, (collectionTime as NSString).utf8String, -1, nil)
         sqlite3_bind_text(stmt, 6, (department as NSString).utf8String, -1, nil)
         sqlite3_bind_text(stmt, 7, (bedNumber as NSString).utf8String, -1, nil)
@@ -79,7 +79,7 @@ class DatabaseManager {
                 name: cstring(stmt, 1),
                 gender: cstring(stmt, 2),
                 age: cstring(stmt, 3),
-                barcode: cstring(stmt, 4),
+                serialNumber: cstring(stmt, 4),
                 collectionTime: cstring(stmt, 5),
                 department: cstring(stmt, 6),
                 bedNumber: cstring(stmt, 7),

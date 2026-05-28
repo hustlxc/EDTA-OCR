@@ -67,7 +67,7 @@ struct FieldExtractor: Sendable {
     }
 
     private let fieldPatterns: [FieldPattern]
-    private let barcodeRegexes: [NSRegularExpression]
+    private let serialRegexes: [NSRegularExpression]
 
     init() {
         let rawPatterns: [(String, [String])] = [
@@ -105,7 +105,7 @@ struct FieldExtractor: Sendable {
             }
         }
 
-        self.barcodeRegexes = [
+        self.serialRegexes = [
             #"^\d{10,20}$"#,
             #"^[A-Z0-9]{8,20}$"#,
         ].compactMap { try? NSRegularExpression(pattern: $0) }
@@ -116,7 +116,7 @@ struct FieldExtractor: Sendable {
             "姓名": ExtractedField(value: "", confidence: "low"),
             "性别": ExtractedField(value: "", confidence: "low"),
             "年龄": ExtractedField(value: "", confidence: "low"),
-            "barcode": ExtractedField(value: "", confidence: "low"),
+            "采血流水号": ExtractedField(value: "", confidence: "low"),
             "采血时间": ExtractedField(value: "", confidence: "low"),
             "科室": ExtractedField(value: "", confidence: "low"),
             "床号": ExtractedField(value: "", confidence: "low"),
@@ -149,18 +149,18 @@ struct FieldExtractor: Sendable {
             }
         }
 
-        // Pass 2: barcode
+        // Pass 2: 采血流水号 (digit-heavy serial number)
         for item in filtered {
             let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            for regex in barcodeRegexes {
+            for regex in serialRegexes {
                 let range = NSRange(location: 0, length: (text as NSString).length)
                 if regex.firstMatch(in: text, options: [], range: range) != nil, text.count >= 8 {
                     let conf = confidenceLevel(item.confidence)
-                    result["barcode"] = ExtractedField(value: text, confidence: conf)
+                    result["采血流水号"] = ExtractedField(value: text, confidence: conf)
                     break
                 }
             }
-            if result["barcode"]?.value.isEmpty == false { break }
+            if result["采血流水号"]?.value.isEmpty == false { break }
         }
 
         // Normalize gender
