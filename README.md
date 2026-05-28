@@ -6,7 +6,8 @@
 
 - 摄像头实时预览拍照
 - Vision 框架 OCR 识别中英文
-- 自动提取 7 个字段：姓名、性别、年龄、流水号、采血时间、科室、床号
+- 自动提取标签字段：姓名、性别、年龄、流水号、采血时间、科室、床号
+- 支持用户录入「子弹头编号」，默认按上一条编号自动递增
 - 三级识别策略：正则匹配 → 特征推断 → DeepSeek AI（可选）
 - 接入 DeepSeek API 后可启用 AI 智能识别，准确率大幅提升
 - 用户核对编辑后存入 SQLite3 数据库
@@ -82,7 +83,7 @@ export DEEPSEEK_API_KEY=sk-your-key-here
 1. Vision OCR 快速提取原始文字（< 0.5s）
 2. 本地 FieldExtractor 立即显示初步结果
 3. DeepSeek AI 异步分析 → 自动覆盖 AI 识别的字段（标注紫色 `AI` 标签）
-4. 用户核对确认 → 存入数据库
+4. 用户核对并填写/确认子弹头编号 → 存入数据库
 
 未配置 API Key 时，系统仅使用本地字段提取器。
 
@@ -114,6 +115,7 @@ CREATE TABLE records (
     性别         TEXT,
     年龄         TEXT,
     流水号        TEXT,
+    子弹头编号      TEXT,
     采血时间      TEXT,
     科室         TEXT,
     床号         TEXT,

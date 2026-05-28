@@ -96,6 +96,7 @@ struct Record: Identifiable {
     let gender: String
     let age: String
     let serialNumber: String
+    let bulletNumber: String
     let collectionTime: String
     let department: String
     let bedNumber: String

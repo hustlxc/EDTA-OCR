@@ -68,9 +68,15 @@ struct DeepSeekClient: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.httpBody = data
-        request.timeoutInterval = 30
+        request.timeoutInterval = 60
 
-        let (responseData, response) = try await URLSession.shared.data(for: request)
+        let responseData: Data
+        let response: URLResponse
+        do {
+            (responseData, response) = try await URLSession.shared.data(for: request)
+        } catch let error as URLError where error.code == .timedOut {
+            throw DeepSeekError.requestTimedOut
+        }
 
         guard let http = response as? HTTPURLResponse else {
             throw DeepSeekError.invalidResponse
@@ -109,6 +115,7 @@ enum DeepSeekError: LocalizedError {
     case httpError(Int)
     case invalidResponse
     case parseError
+    case requestTimedOut
 
     var errorDescription: String? {
         switch self {
@@ -122,6 +129,8 @@ enum DeepSeekError: LocalizedError {
             return "服务器返回异常"
         case .parseError:
             return "AI 返回格式解析失败，请重试"
+        case .requestTimedOut:
+            return "AI 请求超时，请检查网络或稍后重试"
         }
     }
 }

@@ -61,8 +61,8 @@ struct HomeView: View {
 
                     VStack(alignment: .leading, spacing: 14) {
                         workflowRow(step: "1", icon: "camera", title: "采集图像", subtitle: "对准采血管标签后拍照")
-                        workflowRow(step: "2", icon: "text.viewfinder", title: "本地 OCR", subtitle: "Vision 识别并提取 7 个字段")
-                        workflowRow(step: "3", icon: "checklist.checked", title: "人工核对", subtitle: "补全必填项后保存入库")
+                        workflowRow(step: "2", icon: "text.viewfinder", title: "本地 OCR", subtitle: "Vision 识别标签字段")
+                        workflowRow(step: "3", icon: "checklist.checked", title: "人工核对", subtitle: "补全子弹头编号后保存入库")
                     }
 
                     Divider().padding(.vertical, 2)

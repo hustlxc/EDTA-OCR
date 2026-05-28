@@ -7,13 +7,14 @@ struct ReviewView: View {
     @State private var gender = "男"
     @State private var age = ""
     @State private var serialNumber = ""
+    @State private var bulletNumber = ""
     @State private var collectionTime = ""
     @State private var department = ""
     @State private var bedNumber = ""
     @State private var didLoadFields = false
 
-    private let fieldOrder = ["姓名", "性别", "年龄", "流水号", "采血时间", "科室", "床号"]
-    private let requiredFields = ["姓名", "流水号"]
+    private let fieldOrder = ["姓名", "性别", "年龄", "流水号", "子弹头编号", "采血时间", "科室", "床号"]
+    private let requiredFields = ["姓名", "流水号", "子弹头编号"]
     private var recognizedFieldCount: Int {
         fieldOrder.filter {
             !value(for: $0).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -159,6 +160,16 @@ struct ReviewView: View {
                             )
 
                             FieldRow(
+                                label: "子弹头编号",
+                                value: $bulletNumber,
+                                confidence: "high",
+                                isInferred: false,
+                                isAIExtracted: false,
+                                isRequired: true,
+                                isGender: false
+                            )
+
+                            FieldRow(
                                 label: "采血时间",
                                 value: $collectionTime,
                                 confidence: confidence(for: "采血时间"),
@@ -280,6 +291,7 @@ struct ReviewView: View {
         gender = extractedGender == "女" ? "女" : "男"
         age = state.extractedFields["年龄"]?.value ?? ""
         serialNumber = state.extractedFields["流水号"]?.value ?? ""
+        bulletNumber = state.db.nextBulletNumber()
         collectionTime = state.extractedFields["采血时间"]?.value ?? ""
         department = state.extractedFields["科室"]?.value ?? ""
         bedNumber = state.extractedFields["床号"]?.value ?? ""
@@ -291,6 +303,7 @@ struct ReviewView: View {
         case "性别": return gender
         case "年龄": return age
         case "流水号": return serialNumber
+        case "子弹头编号": return bulletNumber
         case "采血时间": return collectionTime
         case "科室": return department
         case "床号": return bedNumber
@@ -408,10 +421,11 @@ struct ReviewView: View {
     private func saveRecord() {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
         let serial = serialNumber.trimmingCharacters(in: .whitespaces)
-        guard !trimmedName.isEmpty, !serial.isEmpty else {
+        let bullet = bulletNumber.trimmingCharacters(in: .whitespaces)
+        guard !trimmedName.isEmpty, !serial.isEmpty, !bullet.isEmpty else {
             let alert = NSAlert()
             alert.messageText = "验证提示"
-            alert.informativeText = "姓名和流水号不能为空，请填写后再保存。"
+            alert.informativeText = "姓名、流水号和子弹头编号不能为空，请填写后再保存。"
             alert.runModal()
             return
         }
@@ -441,6 +455,7 @@ struct ReviewView: View {
         let rawText = state.ocrResults.map(\.text).joined(separator: "\n")
         let ok = state.db.upsert(
             name: trimmedName, gender: trimmedGender, age: trimmedAge, serialNumber: serial,
+            bulletNumber: bullet,
             collectionTime: time, department: dept, bedNumber: bed,
             rawOCRText: rawText
         )
@@ -448,7 +463,7 @@ struct ReviewView: View {
         if ok {
             state.lastSavedRecord = Record(
                 id: 0, name: trimmedName, gender: trimmedGender, age: trimmedAge,
-                serialNumber: serial, collectionTime: time,
+                serialNumber: serial, bulletNumber: bullet, collectionTime: time,
                 department: dept, bedNumber: bed,
                 rawOCRText: rawText, savedAt: ""
             )
@@ -479,6 +494,7 @@ struct ReviewView: View {
                     infoRow("性别:", gender)
                     infoRow("年龄:", age)
                     infoRow("流水号:", serialNumber)
+                    infoRow("子弹头编号:", bulletNumber)
                     infoRow("科室:", department)
                     infoRow("床号:", bedNumber)
                     infoRow("采血时间:", collectionTime)
@@ -498,7 +514,7 @@ struct ReviewView: View {
 
     private func infoRow(_ label: String, _ value: String) -> some View {
         HStack {
-            Text(label).foregroundStyle(.secondary).frame(width: 65, alignment: .trailing)
+            Text(label).foregroundStyle(.secondary).frame(width: 86, alignment: .trailing)
             Text(value).fontWeight(.medium)
         }
     }
@@ -525,7 +541,7 @@ struct FieldRow: View {
                 Text(":")
             }
             .font(.system(size: 13, weight: .semibold))
-            .frame(width: 64, alignment: .trailing)
+            .frame(width: 86, alignment: .trailing)
 
             if isGender {
                 Picker("", selection: $value) {

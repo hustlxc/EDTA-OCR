@@ -64,7 +64,7 @@ class CameraManager: NSObject {
         session.addInput(input)
         if session.canAddOutput(photoOutput) {
             session.addOutput(photoOutput)
-            photoOutput.maxPhotoQualityPrioritization = .quality
+            photoOutput.maxPhotoQualityPrioritization = .balanced
             if let preferredPhotoDimensions {
                 photoOutput.maxPhotoDimensions = preferredPhotoDimensions
             }
@@ -94,7 +94,7 @@ class CameraManager: NSObject {
         captureCompletion = completion
         let settings = AVCapturePhotoSettings()
         settings.flashMode = .off
-        settings.photoQualityPrioritization = .quality
+        settings.photoQualityPrioritization = .balanced
         if let preferredPhotoDimensions {
             settings.maxPhotoDimensions = preferredPhotoDimensions
         }
@@ -131,7 +131,11 @@ class CameraManager: NSObject {
     }
 
     private func bestPhotoDimensions(for format: AVCaptureDevice.Format) -> CMVideoDimensions? {
-        format.supportedMaxPhotoDimensions.max {
+        let stableMaxPixels = 4_000_000
+        let supported = format.supportedMaxPhotoDimensions
+        let stable = supported.filter { Int($0.width) * Int($0.height) <= stableMaxPixels }
+        let candidates = stable.isEmpty ? supported : stable
+        return candidates.max {
             (Int($0.width) * Int($0.height)) < (Int($1.width) * Int($1.height))
         }
     }

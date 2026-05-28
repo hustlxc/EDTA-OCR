@@ -15,13 +15,15 @@ struct HistoryView: View {
     @State private var editGender = "男"
     @State private var editAge = ""
     @State private var editSerial = ""
+    @State private var editBullet = ""
     @State private var editTime = ""
     @State private var editDept = ""
     @State private var editBed = ""
 
     private var canSaveEdit: Bool {
         !editName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !editSerial.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !editSerial.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !editBullet.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
@@ -56,7 +58,7 @@ struct HistoryView: View {
             HStack(spacing: 12) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("搜索姓名、流水号、科室、床号或 OCR 文本", text: $searchText)
+                TextField("搜索姓名、流水号、子弹头编号、科室、床号或 OCR 文本", text: $searchText)
                     .textFieldStyle(.roundedBorder)
                 Text("共 \(records.count) 条")
                     .font(.system(size: 12))
@@ -89,6 +91,10 @@ struct HistoryView: View {
                             Text($0.serialNumber).font(.system(size: 11, design: .monospaced))
                         }
                         .width(120)
+                        TableColumn("子弹头编号") {
+                            Text($0.bulletNumber).font(.system(size: 11, design: .monospaced))
+                        }
+                        .width(92)
                         TableColumn("采血时间") { Text($0.collectionTime).font(.system(size: 11)) }
                             .width(128)
                         TableColumn("科室") { (r: Record) in Text(r.department).font(.system(size: 12)) }
@@ -172,6 +178,9 @@ struct HistoryView: View {
                             Text(record.serialNumber)
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(.secondary)
+                            Text("子弹头编号: \(record.bulletNumber.isEmpty ? "未填写" : record.bulletNumber)")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
                         }
                         Spacer()
                         Button(action: { openEdit(record) }) {
@@ -186,6 +195,7 @@ struct HistoryView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         detailRow("性别", record.gender)
                         detailRow("年龄", record.age)
+                        detailRow("子弹头编号", record.bulletNumber)
                         detailRow("采血时间", record.collectionTime)
                         detailRow("科室", record.department)
                         detailRow("床号", record.bedNumber)
@@ -263,7 +273,7 @@ struct HistoryView: View {
             Text(label)
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
-                .frame(width: 64, alignment: .leading)
+                .frame(width: 76, alignment: .leading)
             Text(value.isEmpty ? "未填写" : value)
                 .font(.system(size: 12, weight: value.isEmpty ? .regular : .medium))
                 .foregroundStyle(value.isEmpty ? .secondary : .primary)
@@ -280,6 +290,7 @@ struct HistoryView: View {
         editGender = (record.gender == "女") ? "女" : "男"
         editAge = record.age
         editSerial = record.serialNumber
+        editBullet = record.bulletNumber
         editTime = record.collectionTime
         editDept = record.department
         editBed = record.bedNumber
@@ -292,9 +303,12 @@ struct HistoryView: View {
 
         let serial = editSerial.trimmingCharacters(in: .whitespaces)
         guard !serial.isEmpty else { return }
+        let bullet = editBullet.trimmingCharacters(in: .whitespaces)
+        guard !bullet.isEmpty else { return }
         _ = state.db.upsert(
             name: name, gender: editGender, age: editAge,
             serialNumber: serial,
+            bulletNumber: bullet,
             collectionTime: editTime, department: editDept,
             bedNumber: editBed,
             rawOCRText: selectedRecord?.rawOCRText ?? ""
@@ -332,6 +346,7 @@ struct HistoryView: View {
                     editRowGender("性别:", $editGender)
                     editRow("年龄:", $editAge)
                     editRow("流水号:", $editSerial)
+                    editRow("子弹头编号:", $editBullet)
                     editRow("采血时间:", $editTime)
                     editRow("科室:", $editDept)
                     editRow("床号:", $editBed)
@@ -367,7 +382,7 @@ struct HistoryView: View {
         HStack(spacing: 8) {
             Text(label)
                 .font(.system(size: 13, weight: .semibold))
-                .frame(width: 64, alignment: .trailing)
+                .frame(width: 82, alignment: .trailing)
             TextField("", text: value)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 14))
@@ -380,7 +395,7 @@ struct HistoryView: View {
         HStack(spacing: 8) {
             Text(label)
                 .font(.system(size: 13, weight: .semibold))
-                .frame(width: 64, alignment: .trailing)
+                .frame(width: 82, alignment: .trailing)
             Picker("", selection: value) {
                 Text("男").tag("男")
                 Text("女").tag("女")
