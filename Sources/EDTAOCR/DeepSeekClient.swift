@@ -1,7 +1,7 @@
 import Foundation
 
 struct DeepSeekClient: Sendable {
-    private let endpoint = "https://api.deepseek.com/chat/completions"
+    private let endpoint = "https://api.deepseek.com/v1/chat/completions"
     private let model = "deepseek-chat"
 
     struct ExtractedFields: Codable, Sendable {
@@ -9,6 +9,7 @@ struct DeepSeekClient: Sendable {
         let 性别: String?
         let 年龄: String?
         let 流水号: String?
+        let 子弹头编号: String?
         let 采血时间: String?
         let 科室: String?
         let 床号: String?
@@ -40,6 +41,7 @@ struct DeepSeekClient: Sendable {
         - 性别: gender, 男 or 女 only
         - 年龄: age in years, just the number
         - 流水号: serial number (8-20 digit or alphanumeric, often the longest number)
+        - 子弹头编号: bullet tube number (short alphanumeric code, sometimes labeled as 子弹头)
         - 采血时间: blood collection datetime (format: YYYY-MM-DD HH:MM or similar)
         - 科室: department name (ends with 科/室/部/中心 usually)
         - 床号: bed number (ends with 床 or digit+号)
@@ -76,6 +78,8 @@ struct DeepSeekClient: Sendable {
             (responseData, response) = try await URLSession.shared.data(for: request)
         } catch let error as URLError where error.code == .timedOut {
             throw DeepSeekError.requestTimedOut
+        } catch {
+            throw DeepSeekError.networkError(error.localizedDescription)
         }
 
         guard let http = response as? HTTPURLResponse else {
@@ -89,15 +93,29 @@ struct DeepSeekClient: Sendable {
             throw DeepSeekError.rateLimited
         }
         guard http.statusCode == 200 else {
+            let body = String(data: responseData, encoding: .utf8) ?? ""
+            print("[DeepSeek] HTTP \(http.statusCode): \(body)")
             throw DeepSeekError.httpError(http.statusCode)
         }
 
         // Parse OpenAI-compatible response
-        guard let json = try JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-              let choices = json["choices"] as? [[String: Any]],
+        guard let json = try JSONSerialization.jsonObject(with: responseData) as? [String: Any] else {
+            let body = String(data: responseData, encoding: .utf8) ?? ""
+            print("[DeepSeek] parse error - body: \(body)")
+            throw DeepSeekError.parseError
+        }
+
+        if let apiError = json["error"] as? [String: Any],
+           let message = apiError["message"] as? String {
+            print("[DeepSeek] API error: \(message)")
+            throw DeepSeekError.apiError(message)
+        }
+
+        guard let choices = json["choices"] as? [[String: Any]],
               let first = choices.first,
               let message = first["message"] as? [String: Any],
               let content = message["content"] as? String else {
+            print("[DeepSeek] unexpected response: \(json)")
             throw DeepSeekError.parseError
         }
 
@@ -116,6 +134,8 @@ enum DeepSeekError: LocalizedError {
     case invalidResponse
     case parseError
     case requestTimedOut
+    case networkError(String)
+    case apiError(String)
 
     var errorDescription: String? {
         switch self {
@@ -131,6 +151,10 @@ enum DeepSeekError: LocalizedError {
             return "AI 返回格式解析失败，请重试"
         case .requestTimedOut:
             return "AI 请求超时，请检查网络或稍后重试"
+        case .networkError(let msg):
+            return "网络错误: \(msg)"
+        case .apiError(let msg):
+            return "API 错误: \(msg)"
         }
     }
 }
