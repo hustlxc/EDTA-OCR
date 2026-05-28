@@ -17,11 +17,12 @@ class CameraManager: NSObject {
         super.init()
         session.sessionPreset = .photo
         // Stop camera on app quit to release hardware
+        let captureSession = session
         NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification,
             object: nil, queue: .main
-        ) { [weak self] _ in
-            self?.session.stopRunning()
+        ) { _ in
+            captureSession.stopRunning()
         }
     }
 
