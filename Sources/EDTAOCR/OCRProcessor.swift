@@ -67,7 +67,9 @@ struct FieldExtractor: Sendable {
     }
 
     private let fieldPatterns: [FieldPattern]
-    private let serialRegexes: [NSRegularExpression]
+    private let serialRegex: NSRegularExpression
+    private let dateRegex: NSRegularExpression
+    private let datetimeRegex: NSRegularExpression
 
     init() {
         let rawPatterns: [(String, [String])] = [
@@ -105,71 +107,238 @@ struct FieldExtractor: Sendable {
             }
         }
 
-        self.serialRegexes = [
-            #"^\d{10,20}$"#,
-            #"^[A-Z0-9]{8,20}$"#,
-        ].compactMap { try? NSRegularExpression(pattern: $0) }
+        self.serialRegex = (try? NSRegularExpression(pattern: #"^\d{10,20}$|^[A-Z0-9]{8,20}$"#))
+            ?? NSRegularExpression()
+        self.datetimeRegex = (try? NSRegularExpression(
+            pattern: #"\d{4}[-/]\d{1,2}[-/]\d{1,2}[\sT]\d{1,2}:\d{2}"#
+        )) ?? NSRegularExpression()
+        self.dateRegex = (try? NSRegularExpression(
+            pattern: #"\d{4}[-/]\d{1,2}[-/]\d{1,2}"#
+        )) ?? NSRegularExpression()
     }
 
-    func extract(from items: [OCRItem]) -> [String: ExtractedField] {
-        var result: [String: ExtractedField] = [
-            "姓名": ExtractedField(value: "", confidence: "low"),
-            "性别": ExtractedField(value: "", confidence: "low"),
-            "年龄": ExtractedField(value: "", confidence: "low"),
-            "采血流水号": ExtractedField(value: "", confidence: "low"),
-            "采血时间": ExtractedField(value: "", confidence: "low"),
-            "科室": ExtractedField(value: "", confidence: "low"),
-            "床号": ExtractedField(value: "", confidence: "low"),
-        ]
+    // ---- Public ----
 
+    func extract(from items: [OCRItem]) -> [String: ExtractedField] {
+        var result = emptyResult()
         let filtered = items.filter { $0.confidence > 0.2 }
         guard !filtered.isEmpty else { return result }
 
-        let sorted = filtered.sorted { $0.bbox.origin.y > $1.bbox.origin.y }
-        let rows = groupIntoRows(sorted)
-        let rowTexts = rows.map { row in
-            row.map { $0.text }.joined(separator: "  ")
-        }
-        let fullText = rowTexts.joined(separator: "\n")
+        let rows = groupIntoRows(filtered)
+        let fullText = rows.map { row in
+            row.sorted { $0.bbox.origin.x < $1.bbox.origin.x }
+                .map { $0.text }.joined(separator: "  ")
+        }.joined(separator: "\n")
         let nsText = fullText as NSString
         let fullRange = NSRange(location: 0, length: nsText.length)
 
-        // Pass 1: named field patterns
+        var consumedTexts = Set<String>()
+
+        // ---- Pass 1: Regex pattern matching (highest confidence) ----
         for fp in fieldPatterns {
-            if result[fp.field]?.value.isEmpty == false { continue }
-            if let match = fp.regex.firstMatch(in: fullText, options: [], range: fullRange) {
-                if match.numberOfRanges > 1, match.range(at: 1).location != NSNotFound {
-                    let value = nsText.substring(with: match.range(at: 1)).trimmingCharacters(in: .whitespaces)
-                    if !value.isEmpty {
-                        let full = nsText.substring(with: match.range)
-                        let conf = estimateConfidence(items: filtered, matchText: full)
-                        result[fp.field] = ExtractedField(value: value, confidence: conf)
+            let key = fp.field
+            if result[key]?.value.isEmpty == false { continue }
+            if let match = fp.regex.firstMatch(in: fullText, options: [], range: fullRange),
+               match.numberOfRanges > 1,
+               match.range(at: 1).location != NSNotFound {
+                let value = nsText.substring(with: match.range(at: 1))
+                    .trimmingCharacters(in: .whitespaces)
+                if !value.isEmpty {
+                    let full = nsText.substring(with: match.range)
+                    let conf = estimateConfidence(items: filtered, matchText: full)
+                    result[key] = ExtractedField(value: value, confidence: conf, isInferred: false)
+                    consumedTexts.insert(full)
+                }
+            }
+        }
+
+        // ---- Pass 2: 流水号 regex ----
+        if result["流水号"]?.value.isEmpty ?? true {
+            for item in filtered {
+                let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if consumedTexts.contains(text) { continue }
+                let r = NSRange(location: 0, length: (text as NSString).length)
+                if serialRegex.firstMatch(in: text, options: [], range: r) != nil, text.count >= 8 {
+                    let conf = confidenceLevel(item.confidence)
+                    result["流水号"] = ExtractedField(value: text, confidence: conf, isInferred: false)
+                    consumedTexts.insert(text)
+                    break
+                }
+            }
+        }
+
+        // ---- Pass 3: Heuristic inference (fallback for unmatched fields) ----
+        let unmatchedItems = filtered.filter {
+            !consumedTexts.contains($0.text.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        inferSerial(&result, from: unmatchedItems, consumed: &consumedTexts)
+        inferCollectionTime(&result, from: unmatchedItems, consumed: &consumedTexts)
+        inferAge(&result, from: unmatchedItems, consumed: &consumedTexts)
+        inferGender(&result, from: unmatchedItems, consumed: &consumedTexts)
+        inferBedNumber(&result, from: unmatchedItems, consumed: &consumedTexts)
+        inferDepartment(&result, from: unmatchedItems, consumed: &consumedTexts)
+        inferName(&result, from: unmatchedItems, consumed: &consumedTexts)
+
+        // Normalize gender
+        if let g = result["性别"]?.value {
+            if g == "M" || g == "m" { result["性别"] = makeField("男", "medium", inferred: false) }
+            if g == "F" || g == "f" { result["性别"] = makeField("女", "medium", inferred: false) }
+        }
+
+        return result
+    }
+
+    // ---- Inference rules (ordered by specificity, most specific first) ----
+
+    private func inferSerial(_ result: inout [String: ExtractedField],
+                             from items: [OCRItem], consumed: inout Set<String>) {
+        guard result["流水号"]?.value.isEmpty ?? true else { return }
+        for item in items {
+            let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if consumed.contains(text) { continue }
+            let r = NSRange(location: 0, length: (text as NSString).length)
+            if serialRegex.firstMatch(in: text, options: [], range: r) != nil, text.count >= 8 {
+                result["流水号"] = makeField(text, confidenceLevel(item.confidence), inferred: true)
+                consumed.insert(text)
+                return
+            }
+        }
+    }
+
+    private func inferCollectionTime(_ result: inout [String: ExtractedField],
+                                     from items: [OCRItem], consumed: inout Set<String>) {
+        guard result["采血时间"]?.value.isEmpty ?? true else { return }
+        // Try datetime first, then date-only
+        let patterns = [datetimeRegex, dateRegex]
+        for item in items {
+            let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if consumed.contains(text) { continue }
+            for regex in patterns {
+                let r = NSRange(location: 0, length: (text as NSString).length)
+                if regex.firstMatch(in: text, options: [], range: r) != nil {
+                    // Additional check: must contain a year (20xx or 19xx)
+                    if text.range(of: #"20\d{2}"#, options: .regularExpression) != nil ||
+                       text.range(of: #"19\d{2}"#, options: .regularExpression) != nil {
+                        result["采血时间"] = makeField(text,
+                            confidenceLevel(item.confidence), inferred: true)
+                        consumed.insert(text)
+                        return
                     }
                 }
             }
         }
+    }
 
-        // Pass 2: 采血流水号 (digit-heavy serial number)
-        for item in filtered {
+    private func inferAge(_ result: inout [String: ExtractedField],
+                          from items: [OCRItem], consumed: inout Set<String>) {
+        guard result["年龄"]?.value.isEmpty ?? true else { return }
+        for item in items {
             let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            for regex in serialRegexes {
-                let range = NSRange(location: 0, length: (text as NSString).length)
-                if regex.firstMatch(in: text, options: [], range: range) != nil, text.count >= 8 {
-                    let conf = confidenceLevel(item.confidence)
-                    result["采血流水号"] = ExtractedField(value: text, confidence: conf)
-                    break
+            if consumed.contains(text) { continue }
+            // Strip "岁" suffix
+            let cleaned = text.replacingOccurrences(of: "岁", with: "").trimmingCharacters(in: .whitespaces)
+            if let age = Int(cleaned), age > 0, age <= 150, cleaned.count <= 3 {
+                // Reject values that look like years or serial fragments
+                if age >= 1900 && age <= 2100 { continue }
+                result["年龄"] = makeField(String(age), confidenceLevel(item.confidence), inferred: true)
+                consumed.insert(text)
+                return
+            }
+        }
+    }
+
+    private func inferGender(_ result: inout [String: ExtractedField],
+                             from items: [OCRItem], consumed: inout Set<String>) {
+        guard result["性别"]?.value.isEmpty ?? true else { return }
+        for item in items {
+            let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if consumed.contains(text) { continue }
+            if text == "男" || text == "女" || text == "M" || text == "F" {
+                result["性别"] = makeField(text, confidenceLevel(item.confidence), inferred: true)
+                consumed.insert(text)
+                return
+            }
+        }
+    }
+
+    private func inferBedNumber(_ result: inout [String: ExtractedField],
+                                from items: [OCRItem], consumed: inout Set<String>) {
+        guard result["床号"]?.value.isEmpty ?? true else { return }
+        for item in items {
+            let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if consumed.contains(text) { continue }
+            // Ends with 床, or pattern like "12号"
+            if text.hasSuffix("床") || text.range(of: #"^\d+[#号]$"#, options: .regularExpression) != nil {
+                if text.count <= 10 {
+                    result["床号"] = makeField(text, confidenceLevel(item.confidence), inferred: true)
+                    consumed.insert(text)
+                    return
                 }
             }
-            if result["采血流水号"]?.value.isEmpty == false { break }
         }
+    }
 
-        // Normalize gender
-        if let g = result["性别"]?.value {
-            if g == "M" || g == "m" { result["性别"] = ExtractedField(value: "男", confidence: "medium") }
-            if g == "F" || g == "f" { result["性别"] = ExtractedField(value: "女", confidence: "medium") }
+    private func inferDepartment(_ result: inout [String: ExtractedField],
+                                 from items: [OCRItem], consumed: inout Set<String>) {
+        guard result["科室"]?.value.isEmpty ?? true else { return }
+        let suffixes = ["科", "室", "部", "中心", "门诊", "病区"]
+        for item in items {
+            let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if consumed.contains(text) { continue }
+            // Must be primarily Chinese, 2-10 chars, end with known suffix
+            let chineseCount = text.unicodeScalars.filter {
+                (0x4E00...0x9FFF).contains($0.value)
+            }.count
+            if chineseCount >= 2, text.count <= 10,
+               suffixes.contains(where: { text.hasSuffix($0) }) {
+                result["科室"] = makeField(text, confidenceLevel(item.confidence), inferred: true)
+                consumed.insert(text)
+                return
+            }
         }
+    }
 
-        return result
+    private func inferName(_ result: inout [String: ExtractedField],
+                           from items: [OCRItem], consumed: inout Set<String>) {
+        guard result["姓名"]?.value.isEmpty ?? true else { return }
+        // Last resort: find 2-4 Chinese characters with no digits
+        for item in items {
+            let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if consumed.contains(text) { continue }
+            let hasDigit = text.rangeOfCharacter(from: .decimalDigits) != nil
+            let hasLetter = text.range(of: #"[a-zA-Z]"#, options: .regularExpression) != nil
+            let chineseOnly = text.unicodeScalars.allSatisfy {
+                (0x4E00...0x9FFF).contains($0.value) || CharacterSet.whitespaces.contains($0)
+            }
+            let chineseCount = text.unicodeScalars.filter {
+                (0x4E00...0x9FFF).contains($0.value)
+            }.count
+            if chineseOnly, chineseCount >= 2, chineseCount <= 4, !hasDigit, !hasLetter {
+                result["姓名"] = makeField(text, confidenceLevel(item.confidence), inferred: true)
+                consumed.insert(text)
+                return
+            }
+        }
+    }
+
+    // ---- Helpers ----
+
+    private func emptyResult() -> [String: ExtractedField] {
+        [
+            "姓名":     ExtractedField(value: "", confidence: "low", isInferred: false),
+            "性别":     ExtractedField(value: "", confidence: "low", isInferred: false),
+            "年龄":     ExtractedField(value: "", confidence: "low", isInferred: false),
+            "流水号":   ExtractedField(value: "", confidence: "low", isInferred: false),
+            "采血时间": ExtractedField(value: "", confidence: "low", isInferred: false),
+            "科室":     ExtractedField(value: "", confidence: "low", isInferred: false),
+            "床号":     ExtractedField(value: "", confidence: "low", isInferred: false),
+        ]
+    }
+
+    private func makeField(_ value: String, _ conf: String, inferred: Bool) -> ExtractedField {
+        let capped = inferred && conf == "high" ? "medium" : conf
+        return ExtractedField(value: value, confidence: capped, isInferred: inferred)
     }
 
     private func groupIntoRows(_ items: [OCRItem]) -> [[OCRItem]] {
@@ -185,7 +354,6 @@ struct FieldExtractor: Sendable {
                     used.insert(other.id)
                 }
             }
-            row.sort { $0.bbox.origin.x < $1.bbox.origin.x }
             rows.append(row)
         }
         return rows

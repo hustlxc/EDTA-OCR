@@ -6,7 +6,8 @@
 
 - 摄像头实时预览拍照
 - Vision 框架 OCR 识别中英文
-- 自动提取 7 个字段：姓名、性别、年龄、采血流水号、采血时间、科室、床号
+- 自动提取 7 个字段：姓名、性别、年龄、流水号、采血时间、科室、床号
+- 正则匹配优先，匹配不到时用字段特征启发式推断（标注"推测"）
 - 用户核对编辑后存入 SQLite3 数据库
 - 历史记录查询
 
@@ -82,11 +83,11 @@ CREATE TABLE records (
     姓名         TEXT,
     性别         TEXT,
     年龄         TEXT,
-    采血流水号    TEXT,
+    流水号        TEXT,
     采血时间      TEXT,
     科室         TEXT,
     床号         TEXT,
-    录入数据库时间  TEXT DEFAULT (datetime('now','localtime'))
+    录入时间      TEXT DEFAULT (datetime('now','localtime'))
 );
 ```
 

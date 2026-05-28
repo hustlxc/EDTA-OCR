@@ -65,6 +65,7 @@ struct OCRItem: Identifiable {
 struct ExtractedField {
     let value: String
     let confidence: String  // "high" | "medium" | "low"
+    let isInferred: Bool    // true = heuristic guess, false = regex match
 }
 
 struct Record: Identifiable {
@@ -76,7 +77,7 @@ struct Record: Identifiable {
     let collectionTime: String
     let department: String
     let bedNumber: String
-    let createdAt: String
+    let savedAt: String
 }
 
 // MARK: - Content View (Router)

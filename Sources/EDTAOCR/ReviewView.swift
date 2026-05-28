@@ -7,10 +7,10 @@ struct ReviewView: View {
     // Editable field values
     @State private var fieldValues: [String: String] = [:]
 
-    private let fieldOrder = ["姓名", "性别", "年龄", "采血流水号", "采血时间", "科室", "床号"]
+    private let fieldOrder = ["姓名", "性别", "年龄", "流水号", "采血时间", "科室", "床号"]
     private let fieldLabels: [String: String] = [
         "姓名": "姓名", "性别": "性别", "年龄": "年龄",
-        "采血流水号": "采血流水号", "采血时间": "采血时间",
+        "流水号": "流水号", "采血时间": "采血时间",
         "科室": "科室", "床号": "床号"
     ]
     private let genderOptions = ["男", "女"]
@@ -73,6 +73,7 @@ struct ReviewView: View {
                                     set: { fieldValues[field] = $0 }
                                 ),
                                 confidence: state.extractedFields[field]?.confidence ?? "low",
+                                isInferred: state.extractedFields[field]?.isInferred ?? false,
                                 isGender: field == "性别"
                             )
                         }
@@ -158,7 +159,7 @@ struct ReviewView: View {
 
         let gender = fieldValues["性别"]?.trimmingCharacters(in: .whitespaces) ?? ""
         let age = fieldValues["年龄"]?.trimmingCharacters(in: .whitespaces) ?? ""
-        let serial = fieldValues["采血流水号"]?.trimmingCharacters(in: .whitespaces) ?? ""
+        let serial = fieldValues["流水号"]?.trimmingCharacters(in: .whitespaces) ?? ""
         let time = fieldValues["采血时间"]?.trimmingCharacters(in: .whitespaces) ?? ""
         let dept = fieldValues["科室"]?.trimmingCharacters(in: .whitespaces) ?? ""
         let bed = fieldValues["床号"]?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -200,7 +201,7 @@ struct ReviewView: View {
                     infoRow("姓名:", fieldValues["姓名"] ?? "")
                     infoRow("性别:", fieldValues["性别"] ?? "")
                     infoRow("年龄:", fieldValues["年龄"] ?? "")
-                    infoRow("采血流水号:", fieldValues["采血流水号"] ?? "")
+                    infoRow("流水号:", fieldValues["流水号"] ?? "")
                     infoRow("科室:", fieldValues["科室"] ?? "")
                     infoRow("床号:", fieldValues["床号"] ?? "")
                     infoRow("采血时间:", fieldValues["采血时间"] ?? "")
@@ -250,6 +251,7 @@ struct FieldRow: View {
     let label: String
     @Binding var value: String
     let confidence: String
+    let isInferred: Bool
     let isGender: Bool
 
     private let genderOptions = ["男", "女"]
@@ -285,6 +287,13 @@ struct FieldRow: View {
             Text("未识别")
                 .font(.system(size: 11))
                 .foregroundStyle(.red)
+        } else if isInferred {
+            Text("推测")
+                .font(.system(size: 10))
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(Capsule().stroke(.orange, lineWidth: 1))
         } else {
             Circle()
                 .fill(confidenceColor)

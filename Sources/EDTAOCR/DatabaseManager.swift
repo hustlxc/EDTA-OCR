@@ -27,14 +27,14 @@ class DatabaseManager {
             姓名 TEXT DEFAULT '',
             性别 TEXT DEFAULT '',
             年龄 TEXT DEFAULT '',
-            采血流水号 TEXT DEFAULT '',
+            流水号 TEXT DEFAULT '',
             采血时间 TEXT DEFAULT '',
             科室 TEXT DEFAULT '',
             床号 TEXT DEFAULT '',
-            录入数据库时间 TEXT DEFAULT (datetime('now','localtime'))
+            录入时间 TEXT DEFAULT (datetime('now','localtime'))
         );
-        CREATE INDEX IF NOT EXISTS idx_serial ON records(采血流水号);
-        CREATE INDEX IF NOT EXISTS idx_time ON records(录入数据库时间);
+        CREATE INDEX IF NOT EXISTS idx_serial ON records(流水号);
+        CREATE INDEX IF NOT EXISTS idx_time ON records(录入时间);
         """
         if sqlite3_exec(db, sql, nil, nil, nil) != SQLITE_OK {
             print("Failed to create table: \(String(cString: sqlite3_errmsg(db)))")
@@ -45,7 +45,7 @@ class DatabaseManager {
                 collectionTime: String, department: String, bedNumber: String) -> Bool {
         guard let db = db else { return false }
         let sql = """
-        INSERT INTO records (姓名, 性别, 年龄, 采血流水号, 采血时间, 科室, 床号)
+        INSERT INTO records (姓名, 性别, 年龄, 流水号, 采血时间, 科室, 床号)
         VALUES (?, ?, ?, ?, ?, ?, ?);
         """
         var stmt: OpaquePointer?
@@ -83,7 +83,7 @@ class DatabaseManager {
                 collectionTime: cstring(stmt, 5),
                 department: cstring(stmt, 6),
                 bedNumber: cstring(stmt, 7),
-                createdAt: cstring(stmt, 8)
+                savedAt: cstring(stmt, 8)
             ))
         }
         return records
