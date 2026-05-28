@@ -62,8 +62,8 @@ struct ReviewView: View {
                 Spacer()
 
                 // OCR retry button
-                if !state.isExtractingWithAI, let image = state.capturedImage {
-                    Button(action: { Task { await retryOCR(image: image) } }) {
+                if !state.isExtractingWithAI && state.capturedImage != nil {
+                    Button(action: { Task { await retryOCR() } }) {
                         Label("OCR 识别", systemImage: "text.viewfinder")
                             .font(.system(size: 11))
                             .foregroundStyle(.blue)
@@ -198,7 +198,8 @@ struct ReviewView: View {
         }
     }
 
-    private func retryOCR(image: NSImage) async {
+    private func retryOCR() async {
+        guard let image = state.capturedImage else { return }
         let results = await state.ocr.recognize(from: image)
         state.ocrResults = results
         let fields = state.extractor.extract(from: results)
