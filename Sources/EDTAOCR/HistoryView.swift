@@ -58,26 +58,32 @@ struct HistoryView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 Table(records) {
-                    TableColumn("ID") { Text("\($0.id)").font(.system(size: 12)) }
-                        .width(36)
                     TableColumn("姓名") { Text($0.name).font(.system(size: 12)) }
                         .width(64)
-                    TableColumn("性别") { Text($0.gender).font(.system(size: 12)) }
-                        .width(36)
-                    TableColumn("年龄") { Text($0.age).font(.system(size: 12)) }
-                        .width(36)
+                    TableColumn("性别/年龄") {
+                        Text("\($0.gender)/\($0.age)")
+                            .font(.system(size: 12))
+                    }
+                    .width(72)
                     TableColumn("流水号") {
                         Text($0.serialNumber).font(.system(size: 11, design: .monospaced))
                     }
                     .width(110)
                     TableColumn("采血时间") { Text($0.collectionTime).font(.system(size: 11)) }
                         .width(120)
-                    TableColumn("科室") { Text($0.department).font(.system(size: 12)) }
+                    TableColumn("科室") { (r: Record) in Text(r.department).font(.system(size: 12)) }
                         .width(60)
-                    TableColumn("床号") { Text($0.bedNumber).font(.system(size: 12)) }
+                    TableColumn("床号") { (r: Record) in Text(r.bedNumber).font(.system(size: 12)) }
                         .width(50)
                     TableColumn("录入时间") { Text($0.savedAt).font(.system(size: 11)) }
                         .width(120)
+                    TableColumn("原始OCR文本") {
+                        Text($0.rawOCRText.replacingOccurrences(of: "\n", with: " | "))
+                            .font(.system(size: 10))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .width(160)
                     TableColumn("操作") { row in
                         HStack(spacing: 6) {
                             Button(action: { openEdit(row) }) {
