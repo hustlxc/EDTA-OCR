@@ -33,7 +33,7 @@ class DatabaseManager {
             床号 TEXT DEFAULT '',
             录入时间 TEXT DEFAULT (datetime('now','localtime'))
         );
-        CREATE INDEX IF NOT EXISTS idx_serial ON records(流水号);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_serial ON records(流水号);
         CREATE INDEX IF NOT EXISTS idx_time ON records(录入时间);
         """
         if sqlite3_exec(db, sql, nil, nil, nil) != SQLITE_OK {
@@ -41,9 +41,33 @@ class DatabaseManager {
         }
     }
 
-    func insert(name: String, gender: String, age: String, serialNumber: String,
+    func serialExists(_ serial: String) -> Bool {
+        guard let db = db, !serial.isEmpty else { return false }
+        let sql = "SELECT COUNT(*) FROM records WHERE 流水号 = ?;"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_text(stmt, 1, (serial as NSString).utf8String, -1, nil)
+        if sqlite3_step(stmt) == SQLITE_ROW {
+            return sqlite3_column_int(stmt, 0) > 0
+        }
+        return false
+    }
+
+    func upsert(name: String, gender: String, age: String, serialNumber: String,
                 collectionTime: String, department: String, bedNumber: String) -> Bool {
         guard let db = db else { return false }
+        // DELETE existing + INSERT (works with UNIQUE INDEX created by migration)
+        if serialExists(serialNumber) {
+            let del = "DELETE FROM records WHERE 流水号 = ?;"
+            var delStmt: OpaquePointer?
+            if sqlite3_prepare_v2(db, del, -1, &delStmt, nil) == SQLITE_OK {
+                sqlite3_bind_text(delStmt, 1, (serialNumber as NSString).utf8String, -1, nil)
+                sqlite3_step(delStmt)
+                sqlite3_finalize(delStmt)
+            }
+        }
+
         let sql = """
         INSERT INTO records (姓名, 性别, 年龄, 流水号, 采血时间, 科室, 床号)
         VALUES (?, ?, ?, ?, ?, ?, ?);

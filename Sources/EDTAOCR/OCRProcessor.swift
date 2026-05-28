@@ -44,10 +44,44 @@ struct OCRProcessor: Sendable {
     }
 
     func saveImageToTemp(_ image: NSImage) -> String? {
+        return writeImage(image, to: "\(NSTemporaryDirectory())edta_capture_\(UUID().uuidString).png")
+    }
+
+    /// Copy the temp image to the captures/ folder, named by serial number.
+    /// Returns the destination path on success.
+    static let capturesDir: String = {
+        let dir = "\(FileManager.default.currentDirectoryPath)/captures"
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true, attributes: nil)
+        return dir
+    }()
+
+    func saveToCaptures(sourceTempPath: String, serialNumber: String) -> String? {
+        let dest = "\(OCRProcessor.capturesDir)/\(serialNumber).png"
+        let destURL = URL(fileURLWithPath: dest)
+
+        // If destination already exists, overwrite
+        if FileManager.default.fileExists(atPath: dest) {
+            try? FileManager.default.removeItem(at: destURL)
+        }
+
+        do {
+            try FileManager.default.copyItem(at: URL(fileURLWithPath: sourceTempPath), to: destURL)
+            return dest
+        } catch {
+            print("Failed to copy image to captures/: \(error)")
+            return nil
+        }
+    }
+
+    func imageExistsInCaptures(serialNumber: String) -> Bool {
+        let path = "\(OCRProcessor.capturesDir)/\(serialNumber).png"
+        return FileManager.default.fileExists(atPath: path)
+    }
+
+    private func writeImage(_ image: NSImage, to path: String) -> String? {
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             return nil
         }
-        let path = "\(NSTemporaryDirectory())edta_capture_\(UUID().uuidString).png"
         let url = URL(fileURLWithPath: path)
         guard let dest = CGImageDestinationCreateWithURL(
             url as CFURL, UTType.png.identifier as CFString, 1, nil

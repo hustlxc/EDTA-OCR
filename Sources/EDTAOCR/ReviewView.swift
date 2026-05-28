@@ -226,7 +226,6 @@ struct ReviewView: View {
     private func saveRecord() {
         let name = fieldValues["姓名"]?.trimmingCharacters(in: .whitespaces) ?? ""
         guard !name.isEmpty else {
-            // Show alert
             let alert = NSAlert()
             alert.messageText = "验证提示"
             alert.informativeText = "姓名不能为空，请填写后再保存。"
@@ -241,13 +240,46 @@ struct ReviewView: View {
         let dept = fieldValues["科室"]?.trimmingCharacters(in: .whitespaces) ?? ""
         let bed = fieldValues["床号"]?.trimmingCharacters(in: .whitespaces) ?? ""
 
-        let ok = state.db.insert(
+        // Check for existing record (image + DB)
+        let imageExists = !serial.isEmpty && state.ocr.imageExistsInCaptures(serialNumber: serial)
+        let recordExists = state.db.serialExists(serial)
+
+        if imageExists || recordExists {
+            let alert = NSAlert()
+            alert.messageText = "数据已存在"
+            alert.informativeText = "流水号 \(serial) 的记录已存在。\n\n是否覆盖原有的图像和数据？"
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "覆盖")
+            alert.addButton(withTitle: "取消")
+            let response = alert.runModal()
+            if response != .alertFirstButtonReturn {
+                return
+            }
+        }
+
+        // Copy image to captures/
+        if !serial.isEmpty, let tempPath = state.capturedImagePath {
+            _ = state.ocr.saveToCaptures(sourceTempPath: tempPath, serialNumber: serial)
+        }
+
+        let ok = state.db.upsert(
             name: name, gender: gender, age: age, serialNumber: serial,
             collectionTime: time, department: dept, bedNumber: bed
         )
 
         if ok {
+            state.lastSavedRecord = Record(
+                id: 0, name: name, gender: gender, age: age,
+                serialNumber: serial, collectionTime: time,
+                department: dept, bedNumber: bed,
+                savedAt: ""
+            )
             showSaveSuccess = true
+        } else {
+            let alert = NSAlert()
+            alert.messageText = "保存失败"
+            alert.informativeText = "数据库写入失败，请重试。"
+            alert.runModal()
         }
     }
 
