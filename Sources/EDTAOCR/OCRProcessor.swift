@@ -3,10 +3,19 @@ import AppKit
 import UniformTypeIdentifiers
 
 struct OCRProcessor: Sendable {
+    func recognize(fromPath path: String) async -> [OCRItem] {
+        guard let cgImage = loadCGImage(from: path) else { return [] }
+        return await recognize(cgImage: cgImage)
+    }
+
     func recognize(from image: NSImage) async -> [OCRItem] {
         guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
             return []
         }
+        return await recognize(cgImage: cgImage)
+    }
+
+    private func recognize(cgImage: CGImage) async -> [OCRItem] {
 
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
@@ -41,6 +50,14 @@ struct OCRProcessor: Sendable {
                 }
             }
         }
+    }
+
+    private func loadCGImage(from path: String) -> CGImage? {
+        guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil),
+              let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+            return nil
+        }
+        return cgImage
     }
 
     func saveImageToTemp(_ image: NSImage) -> String? {
