@@ -60,6 +60,13 @@ struct OCRProcessor: Sendable {
         return cgImage
     }
 
+    /// Save to captures/_latest.png for reliable re-reading
+    func saveToLatest(_ image: NSImage) -> String? {
+        let dir = OCRProcessor.capturesDir
+        let path = "\(dir)/_latest.png"
+        return writeImage(image, to: path)
+    }
+
     func saveImageToTemp(_ image: NSImage) -> String? {
         return writeImage(image, to: "\(NSTemporaryDirectory())edta_capture_\(UUID().uuidString).png")
     }

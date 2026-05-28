@@ -140,7 +140,8 @@ struct HistoryView: View {
             name: name, gender: editGender, age: editAge,
             serialNumber: serial,
             collectionTime: editTime, department: editDept,
-            bedNumber: editBed
+            bedNumber: editBed,
+            rawOCRText: selectedRecord?.rawOCRText ?? ""
         )
         records = state.db.fetchRecent()
         showEditSheet = false

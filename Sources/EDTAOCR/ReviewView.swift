@@ -63,7 +63,7 @@ struct ReviewView: View {
 
                 // OCR retry button
                 if !state.isExtractingWithAI && state.capturedImagePath != nil {
-                    Button(action: { Task { await retryOCR() } }) {
+                    Button(action: { Task { @MainActor in await retryOCR() } }) {
                         Label("OCR 识别", systemImage: "text.viewfinder")
                             .font(.system(size: 11))
                             .foregroundStyle(.blue)
@@ -284,9 +284,12 @@ struct ReviewView: View {
             _ = state.ocr.saveToCaptures(sourceTempPath: tempPath, serialNumber: serial)
         }
 
+        let rawText = state.ocrResults.map(\.text).joined(separator: "\n")
+
         let ok = state.db.upsert(
             name: name, gender: gender, age: age, serialNumber: serial,
-            collectionTime: time, department: dept, bedNumber: bed
+            collectionTime: time, department: dept, bedNumber: bed,
+            rawOCRText: rawText
         )
 
         if ok {
@@ -294,7 +297,7 @@ struct ReviewView: View {
                 id: 0, name: name, gender: gender, age: age,
                 serialNumber: serial, collectionTime: time,
                 department: dept, bedNumber: bed,
-                savedAt: ""
+                rawOCRText: rawText, savedAt: ""
             )
             showSaveSuccess = true
         } else {

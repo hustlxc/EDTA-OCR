@@ -121,7 +121,8 @@ struct CameraView: View {
                 return
             }
             state.capturedImage = image
-            state.capturedImagePath = state.ocr.saveImageToTemp(image)
+            // Save to captures/ for reliable re-reading (not /tmp)
+            state.capturedImagePath = state.ocr.saveToLatest(image)
 
             Task {
                 // Step 1: Vision OCR (fast, local)

@@ -31,6 +31,7 @@ class DatabaseManager {
             采血时间 TEXT DEFAULT '',
             科室 TEXT DEFAULT '',
             床号 TEXT DEFAULT '',
+            原始OCR文本 TEXT DEFAULT '',
             录入时间 TEXT DEFAULT (datetime('now','localtime'))
         );
         CREATE UNIQUE INDEX IF NOT EXISTS idx_serial ON records(流水号);
@@ -39,6 +40,8 @@ class DatabaseManager {
         if sqlite3_exec(db, sql, nil, nil, nil) != SQLITE_OK {
             print("Failed to create table: \(String(cString: sqlite3_errmsg(db)))")
         }
+        // Migration: add column if upgrading from older schema
+        sqlite3_exec(db, "ALTER TABLE records ADD COLUMN 原始OCR文本 TEXT DEFAULT '';", nil, nil, nil)
     }
 
     func serialExists(_ serial: String) -> Bool {
@@ -55,9 +58,9 @@ class DatabaseManager {
     }
 
     func upsert(name: String, gender: String, age: String, serialNumber: String,
-                collectionTime: String, department: String, bedNumber: String) -> Bool {
+                collectionTime: String, department: String, bedNumber: String,
+                rawOCRText: String) -> Bool {
         guard let db = db else { return false }
-        // DELETE existing + INSERT (works with UNIQUE INDEX created by migration)
         if serialExists(serialNumber) {
             let del = "DELETE FROM records WHERE 流水号 = ?;"
             var delStmt: OpaquePointer?
@@ -69,8 +72,8 @@ class DatabaseManager {
         }
 
         let sql = """
-        INSERT INTO records (姓名, 性别, 年龄, 流水号, 采血时间, 科室, 床号)
-        VALUES (?, ?, ?, ?, ?, ?, ?);
+        INSERT INTO records (姓名, 性别, 年龄, 流水号, 采血时间, 科室, 床号, 原始OCR文本)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?);
         """
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
@@ -83,6 +86,7 @@ class DatabaseManager {
         sqlite3_bind_text(stmt, 5, (collectionTime as NSString).utf8String, -1, nil)
         sqlite3_bind_text(stmt, 6, (department as NSString).utf8String, -1, nil)
         sqlite3_bind_text(stmt, 7, (bedNumber as NSString).utf8String, -1, nil)
+        sqlite3_bind_text(stmt, 8, (rawOCRText as NSString).utf8String, -1, nil)
 
         return sqlite3_step(stmt) == SQLITE_DONE
     }
@@ -107,7 +111,8 @@ class DatabaseManager {
                 collectionTime: cstring(stmt, 5),
                 department: cstring(stmt, 6),
                 bedNumber: cstring(stmt, 7),
-                savedAt: cstring(stmt, 8)
+                rawOCRText: cstring(stmt, 8),
+                savedAt: cstring(stmt, 9)
             ))
         }
         return records

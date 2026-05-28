@@ -93,6 +93,7 @@ struct Record: Identifiable {
     let collectionTime: String
     let department: String
     let bedNumber: String
+    let rawOCRText: String
     let savedAt: String
 }
 
