@@ -106,9 +106,9 @@ struct HomeView: View {
                         .foregroundStyle(.secondary)
 
                     HStack(spacing: 8) {
-                        SecureField("sk-...", text: $apiKeyInput)
+                        TextField("sk-...", text: $apiKeyInput)
                             .textFieldStyle(.roundedBorder)
-                            .font(.system(size: 12, design: .monospaced))
+                            .font(.system(size: 13, design: .monospaced))
 
                         Button("保存") {
                             let key = apiKeyInput.trimmingCharacters(in: .whitespaces)
