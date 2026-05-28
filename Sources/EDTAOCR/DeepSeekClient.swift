@@ -2,7 +2,7 @@ import Foundation
 
 struct DeepSeekClient: Sendable {
     private let endpoint = "https://api.deepseek.com/chat/completions"
-    private let model = "deepseek-chat"
+    private let model = "deepseek-v4-pro"
 
     struct ExtractedFields: Codable, Sendable {
         let 姓名: String?
