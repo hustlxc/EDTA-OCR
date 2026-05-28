@@ -60,11 +60,10 @@ struct HistoryView: View {
                 Table(records) {
                     TableColumn("姓名") { Text($0.name).font(.system(size: 12)) }
                         .width(64)
-                    TableColumn("性别/年龄") {
-                        Text("\($0.gender)/\($0.age)")
-                            .font(.system(size: 12))
-                    }
-                    .width(72)
+                    TableColumn("性别") { Text($0.gender).font(.system(size: 12)) }
+                        .width(36)
+                    TableColumn("年龄") { Text($0.age).font(.system(size: 12)) }
+                        .width(36)
                     TableColumn("流水号") {
                         Text($0.serialNumber).font(.system(size: 11, design: .monospaced))
                     }
