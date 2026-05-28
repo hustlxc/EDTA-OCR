@@ -19,7 +19,7 @@ struct ReviewView: View {
         VStack(spacing: 0) {
             // Top bar
             HStack {
-                Button(action: { state.screen = .camera }) {
+                Button(action: { state.reset(); state.screen = .camera }) {
                     Label("重新拍照", systemImage: "arrow.left")
                         .font(.system(size: 13))
                 }
@@ -30,9 +30,49 @@ struct ReviewView: View {
                 Text("审核识别结果")
                     .font(.system(size: 15, weight: .semibold))
 
+                if state.isExtractingWithAI {
+                    HStack(spacing: 4) {
+                        ProgressView().scaleEffect(0.6)
+                        Text("AI 识别中...")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                } else if state.aiError != nil {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.orange)
+                        Text(state.aiError ?? "")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.orange)
+                            .lineLimit(1)
+                    }
+                    .help(state.aiError ?? "")
+                } else if state.aiExtractedFields != nil {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.purple)
+                        Text("AI 已识别")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.purple)
+                    }
+                }
+
                 Spacer()
 
-                Color.clear.frame(width: 80)
+                // AI retry button
+                if state.hasAPIKey && !state.isExtractingWithAI && !state.ocrResults.isEmpty {
+                    Button(action: { Task { await retryAI() } }) {
+                        Label("AI 识别", systemImage: "sparkles")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.purple)
+                    }
+                    .buttonStyle(.borderless)
+                    .help("用 DeepSeek AI 重新识别")
+                }
+
+                Color.clear.frame(width: 8)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -74,6 +114,7 @@ struct ReviewView: View {
                                 ),
                                 confidence: state.extractedFields[field]?.confidence ?? "low",
                                 isInferred: state.extractedFields[field]?.isInferred ?? false,
+                                isAIExtracted: state.aiExtractedFields?[field] != nil,
                                 isGender: field == "性别"
                             )
                         }
@@ -144,6 +185,42 @@ struct ReviewView: View {
                 fieldValues[field] = state.extractedFields[field]?.value ?? ""
             }
         }
+    }
+
+    private func retryAI() async {
+        state.isExtractingWithAI = true
+        state.aiError = nil
+
+        let rawText = state.ocrResults.map(\.text).joined(separator: "\n")
+        guard !rawText.isEmpty else {
+            state.isExtractingWithAI = false
+            return
+        }
+
+        do {
+            let aiFields = try await state.deepSeek.extract(
+                rawText: rawText, apiKey: state.apiKey
+            )
+
+            var fields: [String: ExtractedField] = [:]
+            let mirror = Mirror(reflecting: aiFields)
+            for child in mirror.children {
+                guard let label = child.label,
+                      let value = child.value as? String,
+                      !value.isEmpty else { continue }
+                fields[label] = ExtractedField(value: value, confidence: "high", isInferred: false)
+            }
+
+            for (key, field) in fields {
+                state.extractedFields[key] = field
+                fieldValues[key] = field.value
+            }
+            state.aiExtractedFields = fields
+        } catch {
+            state.aiError = error.localizedDescription
+        }
+
+        state.isExtractingWithAI = false
     }
 
     private func saveRecord() {
@@ -252,6 +329,7 @@ struct FieldRow: View {
     @Binding var value: String
     let confidence: String
     let isInferred: Bool
+    let isAIExtracted: Bool
     let isGender: Bool
 
     private let genderOptions = ["男", "女"]
@@ -287,6 +365,13 @@ struct FieldRow: View {
             Text("未识别")
                 .font(.system(size: 11))
                 .foregroundStyle(.red)
+        } else if isAIExtracted {
+            Text("AI")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.purple))
         } else if isInferred {
             Text("推测")
                 .font(.system(size: 10))

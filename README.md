@@ -7,7 +7,8 @@
 - 摄像头实时预览拍照
 - Vision 框架 OCR 识别中英文
 - 自动提取 7 个字段：姓名、性别、年龄、流水号、采血时间、科室、床号
-- 正则匹配优先，匹配不到时用字段特征启发式推断（标注"推测"）
+- 三级识别策略：正则匹配 → 特征推断 → DeepSeek AI（可选）
+- 接入 DeepSeek API 后可启用 AI 智能识别，准确率大幅提升
 - 用户核对编辑后存入 SQLite3 数据库
 - 历史记录查询
 
@@ -57,6 +58,34 @@ modelscope download --model PaddlePaddle/PP-OCRv5_server_rec --local_dir ./PP-OC
 5. 核对/修改识别结果，点击「确认保存」
 6. 数据存入 SQLite3 数据库，可在历史记录中查看
 
+## DeepSeek AI 智能识别（可选）
+
+AI 模式可以理解语义，自动分辨哪个字符串是姓名、哪个是流水号，效果远超正则。
+
+### 方式一：环境变量
+
+```bash
+export DEEPSEEK_API_KEY=sk-your-key-here
+./build_and_run.sh
+```
+
+### 方式二：应用内设置
+
+启动应用后，点击首页的「AI 设置」按钮，输入 API Key 保存即可。Key 存储在本地 UserDefaults 中。
+
+### 获取 API Key
+
+前往 [DeepSeek 开放平台](https://platform.deepseek.com/api_keys) 注册并创建 API Key。API 调用按量计费，每条 EDTA 管识别成本约 0.001 元。
+
+### 工作流程（AI 模式下）
+
+1. Vision OCR 快速提取原始文字（< 0.5s）
+2. 本地 FieldExtractor 立即显示初步结果
+3. DeepSeek AI 异步分析 → 自动覆盖 AI 识别的字段（标注紫色 `AI` 标签）
+4. 用户核对确认 → 存入数据库
+
+未配置 API Key 时，系统仅使用本地字段提取器。
+
 ## 项目结构
 
 ```
@@ -70,7 +99,8 @@ EDTA-OCR/
 │   ├── HomeView.swift      # 首页
 │   ├── CameraView.swift    # 拍照界面
 │   ├── ReviewView.swift    # 审核编辑界面
-│   └── HistoryView.swift   # 历史记录
+│   ├── HistoryView.swift   # 历史记录
+│   └── DeepSeekClient.swift # DeepSeek API 客户端
 ├── build_and_run.sh        # 编译启动脚本
 └── edta_ocr.db             # 数据库文件（运行时生成）
 ```

@@ -30,12 +30,20 @@ class AppState {
     var extractedFields: [String: ExtractedField] = [:]
     var lastSavedRecord: Record?
 
+    // DeepSeek AI
+    var apiKey: String = DeepSeekClient.loadAPIKey() ?? ""
+    var isExtractingWithAI = false
+    var aiError: String?
+    var aiExtractedFields: [String: ExtractedField]?
+
     let db = DatabaseManager()
     let camera = CameraManager()
     let ocr = OCRProcessor()
     let extractor = FieldExtractor()
+    let deepSeek = DeepSeekClient()
 
     var recordCount: Int { db.count() }
+    var hasAPIKey: Bool { !apiKey.isEmpty }
 
     enum Screen {
         case home
@@ -44,11 +52,19 @@ class AppState {
         case history
     }
 
+    func saveAPIKey(_ key: String) {
+        apiKey = key
+        DeepSeekClient.saveAPIKey(key)
+    }
+
     func reset() {
         capturedImage = nil
         capturedImagePath = nil
         ocrResults = []
         extractedFields = [:]
+        aiExtractedFields = nil
+        aiError = nil
+        isExtractingWithAI = false
         lastSavedRecord = nil
     }
 }

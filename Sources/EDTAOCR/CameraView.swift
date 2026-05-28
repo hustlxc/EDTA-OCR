@@ -124,13 +124,59 @@ struct CameraView: View {
             state.capturedImagePath = state.ocr.saveImageToTemp(image)
 
             Task {
+                // Step 1: Vision OCR (fast, local)
                 let results = await state.ocr.recognize(from: image)
                 state.ocrResults = results
+
+                // Step 2: Local heuristic extraction (instant, shown immediately)
                 state.extractedFields = state.extractor.extract(from: results)
                 state.camera.stopSession()
+
+                // Step 3: DeepSeek AI extraction (async, updates fields when ready)
+                if state.hasAPIKey {
+                    await runDeepSeekExtraction(results: results)
+                }
+
                 state.screen = .review
             }
         }
+    }
+
+    private func runDeepSeekExtraction(results: [OCRItem]) async {
+        state.isExtractingWithAI = true
+        state.aiError = nil
+
+        let rawText = results.map(\.text).joined(separator: "\n")
+        guard !rawText.isEmpty else {
+            state.isExtractingWithAI = false
+            return
+        }
+
+        do {
+            let aiFields = try await state.deepSeek.extract(
+                rawText: rawText, apiKey: state.apiKey
+            )
+
+            var fields: [String: ExtractedField] = [:]
+            let mirror = Mirror(reflecting: aiFields)
+            for child in mirror.children {
+                guard let label = child.label,
+                      let value = child.value as? String,
+                      !value.isEmpty else { continue }
+                fields[label] = ExtractedField(value: value, confidence: "high", isInferred: false)
+            }
+
+            // Merge: AI results take priority for non-empty values
+            for (key, field) in fields {
+                state.extractedFields[key] = field
+            }
+            state.aiExtractedFields = fields
+        } catch {
+            state.aiError = error.localizedDescription
+            // Local extraction remains usable
+        }
+
+        state.isExtractingWithAI = false
     }
 
     private func cancel() {
