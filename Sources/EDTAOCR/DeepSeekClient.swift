@@ -2,7 +2,7 @@ import Foundation
 
 struct DeepSeekClient: Sendable {
     private let endpoint = "https://api.deepseek.com/chat/completions"
-    private let model = "deepseek-v4-pro"
+    private let model = "deepseek-v4-flash"
 
     struct ExtractedFields: Codable, Sendable {
         let 姓名: String?
@@ -59,6 +59,8 @@ struct DeepSeekClient: Sendable {
             "response_format": ["type": "json_object"],
             "temperature": 0.1,
             "max_tokens": 512,
+            "reasoning_effort": "high",
+            "thinking": ["type": "enabled"],
         ]
 
         let data = try JSONSerialization.data(withJSONObject: requestBody)
