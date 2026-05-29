@@ -269,7 +269,7 @@ struct ReviewView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .disabled(!canSave)
-                .keyboardShortcut(.return, modifiers: .command)
+                .keyboardShortcut(.return, modifiers: [])
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 12)
