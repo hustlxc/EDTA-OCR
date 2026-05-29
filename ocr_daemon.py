@@ -11,8 +11,6 @@ import sys
 import json
 import os
 
-os.environ["PADDLEOCR_HOME"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".paddleocr_cache")
-
 try:
     from paddleocr import PaddleOCR
 except ImportError:

@@ -4,5 +4,4 @@
 *.db-wal
 captures/
 capture_tool
-.paddleocr_cache/
 .DS_Store
