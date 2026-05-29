@@ -500,6 +500,7 @@ struct ReviewView: View {
                 HStack(spacing: 16) {
                     Button("继续录入") { showSaveSuccess = false; state.reset(); state.screen = .camera }
                         .buttonStyle(.borderedProminent).controlSize(.large).frame(width: 120)
+                        .keyboardShortcut(.return, modifiers: [])
                     Button("查看历史") { showSaveSuccess = false; state.screen = .history }
                         .buttonStyle(.bordered).controlSize(.large).frame(width: 120)
                 }

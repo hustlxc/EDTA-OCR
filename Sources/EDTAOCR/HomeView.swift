@@ -38,7 +38,7 @@ struct HomeView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    .keyboardShortcut(.return, modifiers: [.command])
+                    .keyboardShortcut(.return, modifiers: [])
 
                     VStack(alignment: .leading, spacing: 12) {
                         metricRow(icon: "checkmark.seal", title: "系统状态", value: "就绪", color: .green)
