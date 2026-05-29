@@ -7,18 +7,6 @@ cd "$SCRIPT_DIR"
 echo "========================================="
 echo " EDTA OCR — Build & Run"
 echo "========================================="
-
-# Check PP-OCRv5 availability (optional)
-PYTHON3=$(which python3 2>/dev/null || echo "")
-if [ -n "$PYTHON3" ]; then
-    if python3 -c "import paddleocr" 2>/dev/null; then
-        echo "PP-OCRv5: available (paddleocr found)"
-    else
-        echo "PP-OCRv5: not installed. Run: pip3 install paddlepaddle paddleocr"
-    fi
-else
-    echo "PP-OCRv5: python3 not found"
-fi
 echo ""
 
 swift build -c release --arch arm64
@@ -76,9 +64,9 @@ echo ""
 # Optional: set DeepSeek API key for AI-powered extraction
 launchctl setenv EDTA_OCR_HOME "$SCRIPT_DIR" >/dev/null 2>&1 || true
 
-if [ -n "${DEEPSEEK_API_KEY:-}" ]; then
-    echo "DeepSeek API key detected (env var) -- AI extraction enabled"
-    launchctl setenv DEEPSEEK_API_KEY "$DEEPSEEK_API_KEY" >/dev/null 2>&1 || true
+if [ -n "${QWEN_API_KEY:-}" ]; then
+    echo "Qwen VL API key detected (env var) -- AI extraction enabled"
+    launchctl setenv QWEN_API_KEY "$QWEN_API_KEY" >/dev/null 2>&1 || true
 fi
 
 # Check if running in GUI session

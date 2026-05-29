@@ -139,9 +139,9 @@ struct CameraView: View {
                 state.extractedFields = state.extractor.extract(from: results)
                 state.camera.stopSession()
 
-                // Step 3: DeepSeek AI extraction (async, updates fields when ready)
-                if state.hasAPIKey {
-                    await runDeepSeekExtraction(results: results)
+                // Step 3: Qwen VL AI extraction (async, sees the image directly)
+                if state.hasQwenAPIKey, let imagePath = state.capturedImagePath {
+                    await runQwenVLExtraction(imagePath: imagePath)
                 }
 
                 isCapturing = false
@@ -150,19 +150,13 @@ struct CameraView: View {
         }
     }
 
-    private func runDeepSeekExtraction(results: [OCRItem]) async {
+    private func runQwenVLExtraction(imagePath: String) async {
         state.isExtractingWithAI = true
         state.aiError = nil
 
-        let rawText = results.map(\.text).joined(separator: "\n")
-        guard !rawText.isEmpty else {
-            state.isExtractingWithAI = false
-            return
-        }
-
         do {
-            let aiFields = try await state.deepSeek.extract(
-                rawText: rawText, apiKey: state.apiKey
+            let aiFields = try await state.qwenVL.extract(
+                fromImagePath: imagePath, apiKey: state.qwenAPIKey
             )
 
             var fields: [String: ExtractedField] = [:]

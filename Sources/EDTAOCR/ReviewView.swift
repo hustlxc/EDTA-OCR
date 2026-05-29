@@ -42,13 +42,13 @@ struct ReviewView: View {
     private var aiButtonTitle: String {
         if state.isExtractingWithAI { return "AI 识别中" }
         if state.ocrResults.isEmpty { return "无 OCR 文本" }
-        return state.hasAPIKey ? "AI 识别" : "AI 未配置"
+        return state.hasQwenAPIKey ? "AI 识别" : "AI 未配置"
     }
 
     private var aiButtonHelp: String {
         if state.isExtractingWithAI { return "正在调用 AI 识别" }
         if state.ocrResults.isEmpty { return "请先完成 OCR 识别" }
-        if !state.hasAPIKey { return "请先在首页配置 DeepSeek API Key" }
+        if !state.hasQwenAPIKey { return "请先在首页配置 Qwen VL API Key" }
         return "重新调用 AI 识别并覆盖非空字段"
     }
 
@@ -346,16 +346,14 @@ struct ReviewView: View {
     }
 
     private func handleAIButton() {
-        guard !state.ocrResults.isEmpty else { return }
-        guard state.hasAPIKey else {
+        guard state.capturedImagePath != nil else { return }
+        guard state.hasQwenAPIKey else {
             let alert = NSAlert()
             alert.messageText = "AI 未配置"
-            alert.informativeText = "请回到首页配置 DeepSeek API Key，或通过 DEEPSEEK_API_KEY 环境变量启动。"
+            alert.informativeText = "请回到首页配置 Qwen VL API Key，或通过 QWEN_API_KEY 环境变量启动。"
             alert.addButton(withTitle: "去配置")
             alert.addButton(withTitle: "取消")
-            if alert.runModal() == .alertFirstButtonReturn {
-                state.screen = .home
-            }
+            if alert.runModal() == .alertFirstButtonReturn { state.screen = .home }
             return
         }
         Task { await retryAI() }
@@ -390,17 +388,12 @@ struct ReviewView: View {
     }
 
     private func retryAI() async {
+        guard let imagePath = state.capturedImagePath else { return }
         state.isExtractingWithAI = true
         state.aiError = nil
 
-        let rawText = state.ocrResults.map(\.text).joined(separator: "\n")
-        guard !rawText.isEmpty else {
-            state.isExtractingWithAI = false
-            return
-        }
-
         do {
-            let aiFields = try await state.deepSeek.extract(rawText: rawText, apiKey: state.apiKey)
+            let aiFields = try await state.qwenVL.extract(fromImagePath: imagePath, apiKey: state.qwenAPIKey)
             var fields: [String: ExtractedField] = [:]
             let mirror = Mirror(reflecting: aiFields)
             for child in mirror.children {

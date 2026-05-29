@@ -50,6 +50,82 @@ modelscope download --model PaddlePaddle/PP-OCRv5_server_rec --local_dir ./PP-OC
 
 > 注意：使用 PP-OCRv5 需要额外安装 `paddlepaddle` 和 `paddleocr`，不在本项目零依赖范围内。
 
+## 部署 PP-OCRv5 OCR API 服务到 s4
+
+本仓库提供了一个 FastAPI 服务，行为与 `ocr_daemon.py` 对齐，封装 PaddleOCR 的完整 OCR pipeline：
+
+- `GET /health`：检查服务与模型配置
+- `POST /ocr`：上传图片文件并返回识别文字、置信度和 bbox
+- `POST /ocr/json`：传入服务器本地 `image_path` 或 `image_base64`
+- `POST /detect` 和 `POST /detect/json`：兼容别名，返回同样的 OCR 结果
+
+默认模型与 `ocr_daemon.py` 一致：
+
+- 检测：`PP-OCRv5_mobile_det`
+- 识别：`PP-OCRv5_mobile_rec`
+
+首次部署前，请确保本机可以免密码登录 `s4`：
+
+```bash
+ssh-copy-id s4
+ssh s4 'hostname'
+```
+
+部署并启动：
+
+```bash
+./deploy_ppocr_api_s4.sh
+```
+
+默认部署目录是 `s4:~/edta-ppocr-api`，可用 `REMOTE_DIR=/path/to/dir` 覆盖。脚本默认不创建虚拟环境，也不安装依赖；它使用 `s4` 上已有的 `python3` 和已安装包。若需要临时安装依赖，可显式设置 `INSTALL_DEPS=1`。
+
+默认服务只监听 `s4` 本机 `127.0.0.1:8008`。在本机打开 SSH 隧道后调用：
+
+```bash
+ssh -N -L 8008:127.0.0.1:8008 s4
+curl http://127.0.0.1:8008/health
+curl -F "file=@captures/example.png" http://127.0.0.1:8008/ocr
+```
+
+服务使用 `nohup` 后台运行，不依赖 `tmux`。在 `s4` 上查看或停止：
+
+```bash
+cd ~/edta-ppocr-api
+tail -f ppocr-api.log
+kill "$(cat ppocr-api.pid)"
+```
+
+常用配置：
+
+```bash
+# 使用 GPU 0
+PPOCR_DEVICE=gpu:0 ./deploy_ppocr_api_s4.sh
+
+# 如需由脚本安装依赖，再启用 INSTALL_DEPS
+INSTALL_DEPS=1 PADDLE_PACKAGE=paddlepaddle-gpu PPOCR_DEVICE=gpu:0 ./deploy_ppocr_api_s4.sh
+
+# 改端口
+PORT=8010 ./deploy_ppocr_api_s4.sh
+
+# 使用 ModelScope 下载到本地的模型目录
+PPOCR_DET_MODEL_DIR=/path/to/PP-OCRv5_mobile_det \
+PPOCR_REC_MODEL_DIR=/path/to/PP-OCRv5_mobile_rec \
+./deploy_ppocr_api_s4.sh
+```
+
+GPU 是否可用可在 `s4` 上检查：
+
+```bash
+cd ~/edta-ppocr-api
+python - <<'PY'
+import paddle
+paddle.utils.run_check()
+print(paddle.device.get_device())
+PY
+```
+
+如果 `paddle.device.get_device()` 显示 `gpu:0`，服务启动时设置 `PPOCR_DEVICE=gpu:0` 即可使用 GPU。PaddleOCR 的 `device` 参数支持 `cpu`、`gpu`、`gpu:0`、`gpu:0,1` 等写法。
+
 ## 使用流程
 
 1. 启动应用，点击「打开摄像头并拍照」
