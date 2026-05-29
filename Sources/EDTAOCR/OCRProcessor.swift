@@ -19,7 +19,8 @@ struct OCRProcessor: Sendable {
 
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
-        request.recognitionLanguages = ["zh-Hans", "en-US"]
+        request.revision = VNRecognizeTextRequestRevision3
+        request.automaticallyDetectsLanguage = true
         request.usesLanguageCorrection = false
         request.minimumTextHeight = 0.005
 
