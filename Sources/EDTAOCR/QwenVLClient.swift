@@ -2,20 +2,18 @@ import Foundation
 import AppKit
 
 enum QVModel: String, CaseIterable {
-    case flash = "qwen-vl-flash"
-    case plus  = "qwen-vl-plus"
-    case max   = "qwen-vl-max"
+    case plus = "qwen-vl-plus"
+    case max  = "qwen-vl-max"
 
     var displayName: String {
         switch self {
-        case .flash: return "Flash (最快)"
-        case .plus:  return "Plus (均衡)"
-        case .max:   return "Max (最准)"
+        case .plus: return "Plus (快速)"
+        case .max:  return "Max (最准)"
         }
     }
 
     static func load() -> QVModel {
-        QVModel(rawValue: UserDefaults.standard.string(forKey: "qwen_vl_model") ?? "") ?? .flash
+        QVModel(rawValue: UserDefaults.standard.string(forKey: "qwen_vl_model") ?? "") ?? .plus
     }
 
     func save() { UserDefaults.standard.set(rawValue, forKey: "qwen_vl_model") }
