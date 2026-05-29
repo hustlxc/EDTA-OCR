@@ -2,14 +2,18 @@
 """PP-OCRv5 daemon — long-lived OCR process for EDTA tube labels.
 
 Listens on stdin for image paths (one per line), outputs JSON to stdout.
-Send "exit" to quit.
+Send "exit" to quit. All non-JSON output goes to stderr.
 
-Requires: pip install paddlepaddle paddleocr
+Requires: pip3 install paddlepaddle paddleocr
 """
 
 import sys
 import json
 import os
+import logging
+
+# Force PaddleOCR logs to stderr so stdout stays clean for JSON communication
+logging.basicConfig(stream=sys.stderr, level=logging.WARNING, format="%(message)s")
 
 try:
     from paddleocr import PaddleOCR
@@ -26,7 +30,6 @@ try:
         use_doc_orientation_classify=False,
         use_doc_unwarping=False,
         use_textline_orientation=False,
-        lang="ch",
     )
 except Exception as e:
     print(json.dumps({"status": "error", "message": f"Failed to load PP-OCRv5: {e}"}), flush=True)
