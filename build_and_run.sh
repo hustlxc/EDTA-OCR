@@ -22,8 +22,6 @@ rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$BINARY" "$MACOS_DIR/EDTAOCR"
 chmod +x "$MACOS_DIR/EDTAOCR"
-# Copy Python daemon into app bundle for reliable access
-cp "$SCRIPT_DIR/ocr_daemon.py" "$RESOURCES_DIR/ocr_daemon.py"
 
 cat > "$PLIST" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
