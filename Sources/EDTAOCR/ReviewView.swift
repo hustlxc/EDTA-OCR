@@ -276,7 +276,10 @@ struct ReviewView: View {
             .background(Color(nsColor: .controlBackgroundColor))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onSubmit { if canSave { saveRecord() } }
+        .onKeyPress(.return) {
+            if canSave { saveRecord(); return .handled }
+            return .ignored
+        }
         .onAppear {
             if !didLoadFields {
                 syncFieldValues()
