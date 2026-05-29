@@ -183,6 +183,37 @@ class DatabaseManager {
         return sqlite3_step(stmt) == SQLITE_DONE
     }
 
+    func exportCSV(to path: String) -> Bool {
+        guard let db = db else { return false }
+        let sql = "SELECT * FROM records ORDER BY id;"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
+        defer { sqlite3_finalize(stmt) }
+
+        var csv = "ID,姓名,性别,年龄,流水号,子弹头编号,采血时间,科室,床号,原始OCR文本,录入时间\n"
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            let cols = (0..<11).map { col -> String in
+                guard let ptr = sqlite3_column_text(stmt, Int32(col)) else { return "" }
+                let val = String(cString: ptr)
+                // Escape CSV: wrap in quotes if contains comma, quote, or newline
+                if val.contains(",") || val.contains("\"") || val.contains("\n") {
+                    return "\"\(val.replacingOccurrences(of: "\"", with: "\"\""))\""
+                }
+                return val
+            }
+            csv += cols.joined(separator: ",") + "\n"
+        }
+
+        guard let data = csv.data(using: .utf8) else { return false }
+        do {
+            try data.write(to: URL(fileURLWithPath: path))
+            return true
+        } catch {
+            print("CSV export failed: \(error)")
+            return false
+        }
+    }
+
     func count() -> Int {
         guard let db = db else { return 0 }
         let sql = "SELECT COUNT(*) FROM records;"

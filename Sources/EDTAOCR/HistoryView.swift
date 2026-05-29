@@ -1,4 +1,6 @@
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 
 struct HistoryView: View {
     @Environment(AppState.self) private var state
@@ -48,6 +50,13 @@ struct HistoryView: View {
                 }
                 .buttonStyle(.borderless)
                 .help("刷新")
+
+                Button(action: exportCSV) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .buttonStyle(.borderless)
+                .help("导出 CSV")
+                .disabled(records.isEmpty)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -155,6 +164,23 @@ struct HistoryView: View {
             return selected
         }
         return records.first
+    }
+
+    private func exportCSV() {
+        let panel = NSSavePanel()
+        panel.title = "导出 CSV"
+        panel.nameFieldStringValue = "EDTA_OCR_\(ISO8601DateFormatter().string(from: Date()).prefix(10)).csv"
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            let ok = state.db.exportCSV(to: url.path)
+            if !ok {
+                let alert = NSAlert()
+                alert.messageText = "导出失败"
+                alert.informativeText = "CSV 写入失败，请检查磁盘空间和权限。"
+                alert.runModal()
+            }
+        }
     }
 
     private func refreshRecords() {
