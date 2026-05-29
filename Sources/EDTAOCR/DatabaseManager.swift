@@ -194,7 +194,9 @@ class DatabaseManager {
         while sqlite3_step(stmt) == SQLITE_ROW {
             let cols = (0..<11).map { col -> String in
                 guard let ptr = sqlite3_column_text(stmt, Int32(col)) else { return "" }
-                let val = String(cString: ptr)
+                var val = String(cString: ptr)
+                // Flatten newlines in OCR text column (col 9) for clean CSV display
+                if col == 9 { val = val.replacingOccurrences(of: "\n", with: " | ") }
                 // Escape CSV: wrap in quotes if contains comma, quote, or newline
                 if val.contains(",") || val.contains("\"") || val.contains("\n") {
                     return "\"\(val.replacingOccurrences(of: "\"", with: "\"\""))\""
