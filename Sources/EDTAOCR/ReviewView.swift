@@ -393,7 +393,7 @@ struct ReviewView: View {
         state.aiError = nil
 
         do {
-            let aiFields = try await state.qwenVL.extract(fromImagePath: imagePath, apiKey: state.qwenAPIKey)
+            let aiFields = try await state.qwenVL.extract(fromImagePath: imagePath, apiKey: state.qwenAPIKey, model: state.qwenModel)
             var fields: [String: ExtractedField] = [:]
             let mirror = Mirror(reflecting: aiFields)
             for child in mirror.children {

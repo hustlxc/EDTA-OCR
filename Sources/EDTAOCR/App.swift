@@ -38,6 +38,7 @@ class AppState {
 
     // Qwen VL AI
     var qwenAPIKey: String = QwenVLClient.loadAPIKey() ?? ""
+    var qwenModel: QVModel = QVModel.load()
     var isExtractingWithAI = false
     var aiError: String?
     var aiExtractedFields: [String: ExtractedField]?

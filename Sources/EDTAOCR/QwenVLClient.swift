@@ -1,9 +1,28 @@
 import Foundation
 import AppKit
 
+enum QVModel: String, CaseIterable {
+    case flash = "qwen-vl-flash"
+    case plus  = "qwen-vl-plus"
+    case max   = "qwen-vl-max"
+
+    var displayName: String {
+        switch self {
+        case .flash: return "Flash (最快)"
+        case .plus:  return "Plus (均衡)"
+        case .max:   return "Max (最准)"
+        }
+    }
+
+    static func load() -> QVModel {
+        QVModel(rawValue: UserDefaults.standard.string(forKey: "qwen_vl_model") ?? "") ?? .flash
+    }
+
+    func save() { UserDefaults.standard.set(rawValue, forKey: "qwen_vl_model") }
+}
+
 struct QwenVLClient: Sendable {
     private let endpoint = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
-    private let model = "qwen-vl-max"
 
     struct ExtractedFields: Codable, Sendable {
         let 姓名: String?
@@ -25,7 +44,7 @@ struct QwenVLClient: Sendable {
     }
 
     /// Send the captured image directly to Qwen VL for field extraction
-    func extract(fromImagePath imagePath: String, apiKey: String) async throws -> ExtractedFields {
+    func extract(fromImagePath imagePath: String, apiKey: String, model: QVModel) async throws -> ExtractedFields {
         guard let imageData = try? Data(contentsOf: URL(fileURLWithPath: imagePath)) else {
             throw QwenVLError.imageLoadFailed
         }
@@ -48,7 +67,7 @@ struct QwenVLClient: Sendable {
         """
 
         let requestBody: [String: Any] = [
-            "model": model,
+            "model": model.rawValue,
             "messages": [[
                 "role": "user",
                 "content": [

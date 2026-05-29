@@ -157,9 +157,20 @@ struct HomeView: View {
                 }
             }
 
-            Text("模型: qwen-vl-max，直接识图提取字段。")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                Text("模型:")
+                    .font(.system(size: 12))
+                Picker("", selection: Binding(
+                    get: { state.qwenModel },
+                    set: { state.qwenModel = $0; $0.save() }
+                )) {
+                    ForEach(QVModel.allCases, id: \.self) { m in
+                        Text(m.displayName).tag(m)
+                    }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+            }
 
             Link("获取 API Key: aliyun.com → 模型服务灵积",
                  destination: URL(string: "https://dashscope.aliyun.com/")!)
