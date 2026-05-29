@@ -2,18 +2,24 @@ import Foundation
 import AppKit
 
 enum QVModel: String, CaseIterable {
-    case plus = "qwen-vl-plus"
-    case max  = "qwen-vl-max"
+    case vlOCR   = "qwen-vl-ocr"
+    case v3Flash = "qwen3-vl-flash"
+    case v3Plus  = "qwen3-vl-plus"
+    case v36Flash = "qwen3.6-flash"
+    case v36Plus = "qwen3.6-plus"
 
     var displayName: String {
         switch self {
-        case .plus: return "Plus (快速)"
-        case .max:  return "Max (最准)"
+        case .vlOCR:   return "VL OCR (专为OCR优化)"
+        case .v3Flash: return "Qwen3-VL Flash (快速)"
+        case .v3Plus:  return "Qwen3-VL Plus (均衡)"
+        case .v36Flash: return "Qwen3.6 Flash (最新·快)"
+        case .v36Plus:  return "Qwen3.6 Plus (最新·强)"
         }
     }
 
     static func load() -> QVModel {
-        QVModel(rawValue: UserDefaults.standard.string(forKey: "qwen_vl_model") ?? "") ?? .plus
+        QVModel(rawValue: UserDefaults.standard.string(forKey: "qwen_vl_model") ?? "") ?? .v3Flash
     }
 
     func save() { UserDefaults.standard.set(rawValue, forKey: "qwen_vl_model") }
