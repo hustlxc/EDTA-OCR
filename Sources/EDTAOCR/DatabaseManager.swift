@@ -190,13 +190,12 @@ class DatabaseManager {
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
         defer { sqlite3_finalize(stmt) }
 
-        var csv = "ID,姓名,性别,年龄,流水号,子弹头编号,采血时间,科室,床号,原始OCR文本,录入时间\n"
+        var csv = "ID,姓名,性别,年龄,流水号,子弹头编号,采血时间,科室,床号,录入时间\n"
+        let exportCols = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10] // skip col 9 (原始OCR文本)
         while sqlite3_step(stmt) == SQLITE_ROW {
-            let cols = (0..<11).map { col -> String in
+            let cols = exportCols.map { col -> String in
                 guard let ptr = sqlite3_column_text(stmt, Int32(col)) else { return "" }
-                var val = String(cString: ptr)
-                // Flatten newlines in OCR text column (col 9) for clean CSV display
-                if col == 9 { val = val.replacingOccurrences(of: "\n", with: " | ") }
+                let val = String(cString: ptr)
                 // Escape CSV: wrap in quotes if contains comma, quote, or newline
                 if val.contains(",") || val.contains("\"") || val.contains("\n") {
                     return "\"\(val.replacingOccurrences(of: "\"", with: "\"\""))\""
