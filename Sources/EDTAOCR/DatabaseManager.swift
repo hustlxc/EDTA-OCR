@@ -9,7 +9,7 @@ class DatabaseManager {
 
     init() {
         let dbPath = AppPaths.path("edta_ocr.db")
-        if sqlite3_open(dbPath, &db) != SQLITE_OK {
+        guard sqlite3_open(dbPath, &db) == SQLITE_OK else {
             print("Failed to open database: \(String(cString: sqlite3_errmsg(db)))")
             db = nil
             return

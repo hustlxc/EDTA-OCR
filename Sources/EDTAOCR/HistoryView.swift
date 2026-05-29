@@ -305,6 +305,10 @@ struct HistoryView: View {
         guard !serial.isEmpty else { return }
         let bullet = editBullet.trimmingCharacters(in: .whitespaces)
         guard !bullet.isEmpty else { return }
+        // If serial number changed, delete the old record first to avoid duplicates
+        if let oldSerial = selectedRecord?.serialNumber, oldSerial != serial {
+            _ = state.db.deleteRecord(serial: oldSerial)
+        }
         _ = state.db.upsert(
             name: name, gender: editGender, age: editAge,
             serialNumber: serial,

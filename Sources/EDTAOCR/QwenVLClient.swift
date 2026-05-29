@@ -85,7 +85,8 @@ struct QwenVLClient: Sendable {
         ]
 
         let data = try JSONSerialization.data(withJSONObject: requestBody)
-        var request = URLRequest(url: URL(string: endpoint)!)
+        guard let url = URL(string: endpoint) else { throw QwenVLError.invalidResponse }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")

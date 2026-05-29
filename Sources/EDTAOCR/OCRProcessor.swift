@@ -251,8 +251,8 @@ struct FieldExtractor: Sendable {
 
         // Normalize gender
         if let g = result["性别"]?.value {
-            if g == "M" || g == "m" { result["性别"] = makeField("男", "medium", inferred: false) }
-            if g == "F" || g == "f" { result["性别"] = makeField("女", "medium", inferred: false) }
+            if g == "M" || g == "m" { result["性别"] = makeField("男", "medium", inferred: true) }
+            if g == "F" || g == "f" { result["性别"] = makeField("女", "medium", inferred: true) }
         }
 
         return result

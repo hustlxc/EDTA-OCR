@@ -173,7 +173,7 @@ struct HomeView: View {
             }
 
             Link("获取 API Key: aliyun.com → 模型服务灵积",
-                 destination: URL(string: "https://dashscope.aliyun.com/")!)
+                 destination: URL(string: "https://dashscope.aliyun.com/") ?? URL(string: "about:blank")!)
                 .font(.system(size: 11))
 
             Text("也可使用环境变量 QWEN_API_KEY。")

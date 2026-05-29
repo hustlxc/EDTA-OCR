@@ -276,10 +276,6 @@ struct ReviewView: View {
             .background(Color(nsColor: .controlBackgroundColor))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onKeyPress(.return) {
-            if canSave { saveRecord(); return .handled }
-            return .ignored
-        }
         .onAppear {
             if !didLoadFields {
                 syncFieldValues()
@@ -398,12 +394,15 @@ struct ReviewView: View {
 
         do {
             let aiFields = try await state.qwenVL.extract(fromImagePath: imagePath, apiKey: state.qwenAPIKey, model: state.qwenModel)
+            // Guard: don't apply results if user navigated away or captured a new image
+            guard state.capturedImagePath == imagePath else { return }
             var fields: [String: ExtractedField] = [:]
             let mirror = Mirror(reflecting: aiFields)
             for child in mirror.children {
                 guard let label = child.label, let value = child.value as? String, !value.isEmpty else { continue }
                 fields[label] = ExtractedField(value: value, confidence: "high", isInferred: false)
             }
+            guard state.capturedImagePath == imagePath else { return }
             for (key, field) in fields {
                 state.extractedFields[key] = field
             }

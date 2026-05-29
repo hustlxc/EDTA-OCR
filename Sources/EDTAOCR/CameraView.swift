@@ -6,6 +6,7 @@ struct CameraView: View {
     @State private var overlayMessage = "按空格键或点击下方按钮拍照"
     @State private var showOverlay = true
     @State private var isCapturing = false
+    @State private var activeCaptureTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -130,9 +131,10 @@ struct CameraView: View {
             // Save to captures/ for reliable re-reading (not /tmp)
             state.capturedImagePath = state.ocr.saveToLatest(image)
 
-            Task {
+            let task = Task {
                 // Step 1: Vision OCR (fast, local)
                 let results = await state.recognizeOCR(from: image)
+                guard !Task.isCancelled else { return }
                 state.ocrResults = results
 
                 // Step 2: Local heuristic extraction (instant, shown immediately)
@@ -144,9 +146,11 @@ struct CameraView: View {
                     await runQwenVLExtraction(imagePath: imagePath)
                 }
 
+                guard !Task.isCancelled else { return }
                 isCapturing = false
                 state.screen = .review
             }
+            activeCaptureTask = task
         }
     }
 
@@ -182,6 +186,8 @@ struct CameraView: View {
     }
 
     private func cancel() {
+        activeCaptureTask?.cancel()
+        activeCaptureTask = nil
         state.camera.stopSession()
         state.screen = .home
     }
