@@ -185,7 +185,7 @@ class DatabaseManager {
 
     func exportCSV(to path: String) -> Bool {
         guard let db = db else { return false }
-        let sql = "SELECT * FROM records ORDER BY id;"
+        let sql = "SELECT \(selectColumns) FROM records ORDER BY id;"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
         defer { sqlite3_finalize(stmt) }
