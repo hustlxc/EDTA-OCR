@@ -43,6 +43,9 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         metricRow(icon: "checkmark.seal", title: "系统状态", value: "就绪", color: .green)
                         metricRow(icon: "tray.full", title: "已录入记录", value: "\(state.recordCount) 条", color: .blue)
+                        if CameraManager.cameras.count > 1 {
+                            cameraPicker
+                        }
                         metricRow(
                             icon: state.hasQwenAPIKey ? "sparkles" : "wand.and.stars.inverse",
                             title: "AI 增强",
@@ -91,6 +94,29 @@ struct HomeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private var cameraPicker: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "web.camera")
+                .foregroundStyle(.blue)
+                .frame(width: 18)
+            Text("摄像头")
+                .foregroundStyle(.secondary)
+            Spacer()
+            Picker("", selection: Binding(
+                get: { CameraManager.loadPreferredCameraID() ?? CameraManager.cameras.first?.id ?? "" },
+                set: { CameraManager.savePreferredCameraID($0) }
+            )) {
+                ForEach(CameraManager.cameras) { cam in
+                    Text(cam.isBuiltIn ? "\(cam.name) (内置)" : cam.name).tag(cam.id)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(width: 180)
+        }
+        .font(.system(size: 13))
     }
 
     private func metricRow(icon: String, title: String, value: String, color: Color) -> some View {

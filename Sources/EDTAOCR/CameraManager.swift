@@ -2,6 +2,12 @@
 import AppKit
 import SwiftUI
 
+struct CameraInfo: Identifiable {
+    let id: String       // uniqueDeviceID
+    let name: String     // localizedName
+    let isBuiltIn: Bool
+}
+
 @MainActor
 @Observable
 class CameraManager: NSObject {
@@ -15,10 +21,33 @@ class CameraManager: NSObject {
     private var activeCaptureID: UUID?
     private var preferredPhotoDimensions: CMVideoDimensions?
 
+    static let cameras: [CameraInfo] = {
+        let discovery = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInWideAngleCamera, .external],
+            mediaType: .video,
+            position: .unspecified
+        )
+        return discovery.devices.map { device in
+            CameraInfo(
+                id: device.uniqueID,
+                name: device.localizedName,
+                isBuiltIn: !device.localizedName.lowercased().contains("usb") &&
+                           !device.localizedName.lowercased().contains("external")
+            )
+        }
+    }()
+
+    static func loadPreferredCameraID() -> String? {
+        UserDefaults.standard.string(forKey: "preferred_camera_id")
+    }
+
+    static func savePreferredCameraID(_ id: String) {
+        UserDefaults.standard.set(id, forKey: "preferred_camera_id")
+    }
+
     override init() {
         super.init()
         session.sessionPreset = .photo
-        // Stop camera on app quit to release hardware
         let captureSession = session
         NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification,
@@ -52,7 +81,17 @@ class CameraManager: NSObject {
             return
         }
 
-        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .unspecified),
+        // Use preferred camera if set, otherwise default
+        let device: AVCaptureDevice?
+        if let preferredID = CameraManager.loadPreferredCameraID(),
+           let preferred = CameraManager.cameras.first(where: { $0.id == preferredID }) {
+            device = AVCaptureDevice(uniqueID: preferred.id)
+        } else {
+            device = CameraManager.cameras.first.flatMap { AVCaptureDevice(uniqueID: $0.id) }
+                ?? AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .unspecified)
+        }
+
+        guard let device,
               let input = try? AVCaptureDeviceInput(device: device),
               session.canAddInput(input) else {
             captureError = "未检测到摄像头"
