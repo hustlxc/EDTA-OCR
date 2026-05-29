@@ -1,34 +1,17 @@
 import Foundation
 
-/// Thread-safe buffer for accumulating FileHandle data in a Sendable closure context.
-private final class ReadBuffer: @unchecked Sendable {
-    private var data = Data()
-    private let lock = NSLock()
-
-    func append(_ chunk: Data) {
-        lock.lock(); defer { lock.unlock() }
-        data.append(chunk)
-    }
-
-    func extractLine() -> Data? {
-        lock.lock(); defer { lock.unlock() }
-        guard let nl = data.range(of: Data("\n".utf8)) else { return nil }
-        let line = data.subdata(in: 0..<nl.lowerBound)
-        data.removeSubrange(0...nl.lowerBound)
-        return line
-    }
-}
-
 @MainActor
 @Observable
 class PaddleOCRClient {
     private var process: Process?
-    private var stdin: FileHandle?
-    private var stdout: FileHandle?
 
     var isReady = false
     var isLoading = false
     var loadError: String?
+
+    private let reqFile = "/tmp/ocr_request.txt"
+    private let respFile = "/tmp/ocr_response.json"
+    private let readyFile = "/tmp/ocr_ready"
 
     func start() async {
         guard process == nil else { return }
@@ -41,112 +24,96 @@ class PaddleOCRClient {
             return
         }
 
+        // Clean up previous files
+        try? FileManager.default.removeItem(atPath: reqFile)
+        try? FileManager.default.removeItem(atPath: respFile)
+        try? FileManager.default.removeItem(atPath: readyFile)
+
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
         task.arguments = ["-u", daemonPath]
         task.currentDirectoryURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 
         let stdinPipe = Pipe()
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
         task.standardInput = stdinPipe
-        task.standardOutput = stdoutPipe
-        task.standardError = stderrPipe
-
-        stdin = stdinPipe.fileHandleForWriting
-        stdout = stdoutPipe.fileHandleForReading
+        task.standardOutput = FileHandle.nullDevice
+        task.standardError = FileHandle.nullDevice
 
         try? task.run()
         process = task
 
-        let ready = await readReadyLine(from: stdoutPipe.fileHandleForReading)
-
-        if ready {
-            isReady = true
-        } else {
-            if loadError == nil { loadError = "PP-OCRv5 启动失败" }
-            let errData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-            if let errStr = String(data: errData, encoding: .utf8), !errStr.isEmpty {
-                loadError = (loadError ?? "") + " — \(errStr.prefix(200))"
+        // Wait for ready file (max 60s for model download)
+        for _ in 0..<300 {
+            if FileManager.default.fileExists(atPath: readyFile) {
+                isReady = true
+                isLoading = false
+                return
             }
-            task.terminate()
-            process = nil; stdin = nil; stdout = nil
+            // Check for error response
+            if FileManager.default.fileExists(atPath: respFile),
+               let data = try? Data(contentsOf: URL(fileURLWithPath: respFile)),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               json["status"] as? String == "error" {
+                loadError = json["message"] as? String ?? "PP-OCRv5 启动失败"
+                task.terminate(); process = nil
+                isLoading = false
+                return
+            }
+            try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
         }
+
+        loadError = "PP-OCRv5 启动超时"
+        task.terminate(); process = nil
         isLoading = false
     }
 
-    private func readReadyLine(from handle: FileHandle) async -> Bool {
-        return await withCheckedContinuation { continuation in
-            let buffer = ReadBuffer()
-
-            handle.readabilityHandler = { h in
-                let chunk = h.availableData
-                guard !chunk.isEmpty else { return }
-                buffer.append(chunk)
-
-                guard let lineData = buffer.extractLine(),
-                      let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any] else {
-                    return // not a complete JSON line yet, or not JSON
-                }
-
-                let status = json["status"] as? String
-                if status == "ready" {
-                    handle.readabilityHandler = nil
-                    continuation.resume(returning: true)
-                } else if status == "error" {
-                    let msg = json["message"] as? String ?? "PP-OCRv5 加载失败"
-                    Task { @MainActor [weak self] in self?.loadError = msg }
-                    handle.readabilityHandler = nil
-                    continuation.resume(returning: false)
-                }
-            }
-        }
-    }
-
     func recognize(fromPath imagePath: String) async -> [OCRItem] {
-        guard isReady, let stdin else { return [] }
-        _ = stdout?.availableData // flush stale
+        guard isReady else { return [] }
 
-        return await withCheckedContinuation { continuation in
-            let buffer = ReadBuffer()
+        // Clean response
+        try? FileManager.default.removeItem(atPath: respFile)
 
-            stdout?.readabilityHandler = { handle in
-                let chunk = handle.availableData
-                guard !chunk.isEmpty else { return }
-                buffer.append(chunk)
+        // Write request
+        let cmd = "\(imagePath)\n"
+        guard let _ = try? cmd.write(toFile: reqFile, atomically: true, encoding: .utf8) else {
+            return []
+        }
 
-                guard let lineData = buffer.extractLine(),
-                      let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any] else {
-                    return
-                }
+        // Poll for response (max 30s)
+        for _ in 0..<150 {
+            if FileManager.default.fileExists(atPath: respFile),
+               let data = try? Data(contentsOf: URL(fileURLWithPath: respFile)),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
 
-                handle.readabilityHandler = nil
+                guard json["status"] as? String == "ok",
+                      let items = json["results"] as? [[String: Any]] else { return [] }
 
-                if json["status"] as? String == "ok",
-                   let items = json["results"] as? [[String: Any]] {
-                    let results: [OCRItem] = items.compactMap { item in
-                        guard let text = item["text"] as? String,
-                              let conf = item["confidence"] as? Float else { return nil }
-                        let bb = item["bbox"] as? [String: Double] ?? [:]
-                        return OCRItem(text: text, confidence: conf,
-                                       bbox: CGRect(x: bb["x"] ?? 0, y: bb["y"] ?? 0,
-                                                    width: bb["w"] ?? 0, height: bb["h"] ?? 0))
-                    }
-                    continuation.resume(returning: results)
-                } else {
-                    continuation.resume(returning: [])
+                return items.compactMap { item in
+                    guard let text = item["text"] as? String,
+                          let conf = item["confidence"] as? Float else { return nil }
+                    let bb = item["bbox"] as? [String: Double] ?? [:]
+                    return OCRItem(text: text, confidence: conf,
+                                   bbox: CGRect(x: bb["x"] ?? 0, y: bb["y"] ?? 0,
+                                                width: bb["w"] ?? 0, height: bb["h"] ?? 0))
                 }
             }
-
-            stdin.write(Data("\(imagePath)\n".utf8))
+            try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
         }
+        return []
     }
 
     func stop() {
-        try? stdin?.write(contentsOf: "exit\n".data(using: .utf8)!)
-        stdin?.closeFile(); stdin = nil
-        process?.terminate(); process?.waitUntilExit(); process = nil
-        stdout = nil
+        // Signal daemon to exit
+        try? "exit\n".write(toFile: reqFile, atomically: true, encoding: .utf8)
+        process?.terminate()
+        process?.waitUntilExit()
+        process = nil
+
+        // Clean up
+        try? FileManager.default.removeItem(atPath: reqFile)
+        try? FileManager.default.removeItem(atPath: respFile)
+        try? FileManager.default.removeItem(atPath: readyFile)
+
         isReady = false; isLoading = false
     }
 
