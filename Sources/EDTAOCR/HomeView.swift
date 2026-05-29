@@ -43,6 +43,7 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         metricRow(icon: "checkmark.seal", title: "系统状态", value: "就绪", color: .green)
                         metricRow(icon: "tray.full", title: "已录入记录", value: "\(state.recordCount) 条", color: .blue)
+                        engineSelector
                         metricRow(
                             icon: state.hasAPIKey ? "sparkles" : "wand.and.stars.inverse",
                             title: "AI 增强",
@@ -90,6 +91,42 @@ struct HomeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    @ViewBuilder
+    private var engineSelector: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "cpu")
+                .foregroundStyle(.blue)
+                .frame(width: 18)
+            Text("OCR 引擎")
+                .foregroundStyle(.secondary)
+            Spacer()
+            Picker("", selection: Binding(
+                get: { state.ocrEngine },
+                set: { state.setOCREngine($0) }
+            )) {
+                ForEach(OCREngine.allCases, id: \.self) { engine in
+                    Text(engine.displayName).tag(engine)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(width: 130)
+
+            if state.ocrEngine == .paddleOCR {
+                if state.paddleOCR?.isLoading == true {
+                    ProgressView().scaleEffect(0.5)
+                } else if state.paddleOCR?.isReady == true {
+                    Circle().fill(Color.green).frame(width: 8, height: 8)
+                } else if let err = state.paddleOCR?.loadError {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red).font(.system(size: 12))
+                        .help(err)
+                }
+            }
+        }
+        .font(.system(size: 13))
     }
 
     private func metricRow(icon: String, title: String, value: String, color: Color) -> some View {

@@ -5,8 +5,21 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 echo "========================================="
-echo " Building EDTA OCR (SwiftUI native)..."
+echo " EDTA OCR — Build & Run"
 echo "========================================="
+
+# Check PP-OCRv5 availability (optional)
+PYTHON3=$(which python3 2>/dev/null || echo "")
+if [ -n "$PYTHON3" ]; then
+    if python3 -c "import paddleocr" 2>/dev/null; then
+        echo "PP-OCRv5: available (paddleocr found)"
+    else
+        echo "PP-OCRv5: not installed. Run: pip3 install paddlepaddle paddleocr"
+    fi
+else
+    echo "PP-OCRv5: python3 not found"
+fi
+echo ""
 
 swift build -c release --arch arm64
 

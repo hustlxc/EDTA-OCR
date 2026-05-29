@@ -63,6 +63,19 @@ modelscope download --model PaddlePaddle/PP-OCRv5_server_rec --local_dir ./PP-OC
 
 AI 模式可以理解语义，自动分辨哪个字符串是姓名、哪个是流水号，效果远超正则。
 
+## OCR 引擎选择
+
+首页提供两种 OCR 引擎：
+
+| 引擎 | 特点 | 依赖 |
+|------|------|------|
+| Mac Vision | 系统自带，零依赖，速度快 | 无 |
+| PP-OCRv5 | 中文更准，手写/旋转/小字效果好 | `pip3 install paddlepaddle paddleocr` |
+
+PP-OCRv5 首次启动需加载模型（2-3 秒），之后推理速度与 Vision 相当。
+
+## DeepSeek AI 智能识别（可选）
+
 ### 方式一：环境变量
 
 ```bash
@@ -101,8 +114,10 @@ EDTA-OCR/
 │   ├── CameraView.swift    # 拍照界面
 │   ├── ReviewView.swift    # 审核编辑界面
 │   ├── HistoryView.swift   # 历史记录
-│   └── DeepSeekClient.swift # DeepSeek API 客户端
-├── build_and_run.sh        # 编译启动脚本
+│   ├── DeepSeekClient.swift # DeepSeek API 客户端
+│   └── PaddleOCRClient.swift # PP-OCRv5 桥接客户端
+├── ocr_daemon.py            # PP-OCRv5 Python 守护进程
+├── build_and_run.sh         # 编译启动脚本
 └── edta_ocr.db             # 数据库文件（运行时生成）
 ```
 

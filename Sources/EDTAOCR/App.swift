@@ -36,6 +36,10 @@ class AppState {
     var extractedFields: [String: ExtractedField] = [:]
     var lastSavedRecord: Record?
 
+    // OCR Engine selection
+    var ocrEngine: OCREngine = OCREngine.load()
+    var paddleOCR: PaddleOCRClient?
+
     // DeepSeek AI
     var apiKey: String = DeepSeekClient.loadAPIKey() ?? ""
     var isExtractingWithAI = false
@@ -50,12 +54,49 @@ class AppState {
 
     var recordCount: Int { db.count() }
     var hasAPIKey: Bool { !apiKey.isEmpty }
+    var paddleOCRAvailable: Bool { paddleOCR?.isReady ?? false }
 
     enum Screen {
         case home
         case camera
         case review
         case history
+    }
+
+    func setOCREngine(_ engine: OCREngine) {
+        ocrEngine = engine
+        engine.save()
+        if engine == .paddleOCR && paddleOCR == nil {
+            paddleOCR = PaddleOCRClient()
+            Task { await paddleOCR?.start() }
+        } else if engine == .vision && paddleOCR != nil {
+            paddleOCR?.stop()
+            paddleOCR = nil
+        }
+    }
+
+    /// Run OCR on an image path using the selected engine
+    func recognizeOCR(fromPath path: String) async -> [OCRItem] {
+        switch ocrEngine {
+        case .vision:
+            return await ocr.recognize(fromPath: path)
+        case .paddleOCR:
+            guard let client = paddleOCR, client.isReady else { return [] }
+            return await client.recognize(fromPath: path)
+        }
+    }
+
+    /// Run OCR on an NSImage using the selected engine
+    func recognizeOCR(from image: NSImage) async -> [OCRItem] {
+        switch ocrEngine {
+        case .vision:
+            return await ocr.recognize(from: image)
+        case .paddleOCR:
+            // PP-OCRv5 needs a file path; save to temp first
+            guard let path = ocr.saveImageToTemp(image) else { return [] }
+            guard let client = paddleOCR, client.isReady else { return [] }
+            return await client.recognize(fromPath: path)
+        }
     }
 
     func saveAPIKey(_ key: String) {
@@ -72,6 +113,36 @@ class AppState {
         aiError = nil
         isExtractingWithAI = false
         lastSavedRecord = nil
+    }
+}
+
+// MARK: - OCR Engine
+
+enum OCREngine: String, CaseIterable {
+    case vision = "vision"
+    case paddleOCR = "paddleocr"
+
+    var displayName: String {
+        switch self {
+        case .vision:    return "Mac Vision"
+        case .paddleOCR: return "PP-OCRv5"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .vision:    return "系统自带，零依赖，速度快"
+        case .paddleOCR: return "PaddleOCR，中文更准，需安装 Python 依赖"
+        }
+    }
+
+    static func load() -> OCREngine {
+        let raw = UserDefaults.standard.string(forKey: "ocr_engine") ?? ""
+        return OCREngine(rawValue: raw) ?? .vision
+    }
+
+    func save() {
+        UserDefaults.standard.set(rawValue, forKey: "ocr_engine")
     }
 }
 

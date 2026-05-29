@@ -132,7 +132,7 @@ struct CameraView: View {
 
             Task {
                 // Step 1: Vision OCR (fast, local)
-                let results = await state.ocr.recognize(from: image)
+                let results = await state.recognizeOCR(from: image)
                 state.ocrResults = results
 
                 // Step 2: Local heuristic extraction (instant, shown immediately)

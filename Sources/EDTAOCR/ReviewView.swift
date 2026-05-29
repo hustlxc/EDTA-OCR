@@ -381,7 +381,7 @@ struct ReviewView: View {
         guard let imagePath = state.capturedImagePath else { return }
         state.ocrResults = []
         let results = await Task.detached(priority: .userInitiated) {
-            await state.ocr.recognize(fromPath: imagePath)
+            await state.recognizeOCR(fromPath: imagePath)
         }.value
         state.ocrResults = results
         let fields = state.extractor.extract(from: results)
