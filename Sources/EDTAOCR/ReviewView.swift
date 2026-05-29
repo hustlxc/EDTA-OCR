@@ -269,13 +269,14 @@ struct ReviewView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .disabled(!canSave)
-                .keyboardShortcut(.return, modifiers: [.command])
+                .keyboardShortcut(.return, modifiers: .command)
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 12)
             .background(Color(nsColor: .controlBackgroundColor))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onSubmit { if canSave { saveRecord() } }
         .onAppear {
             if !didLoadFields {
                 syncFieldValues()
