@@ -221,15 +221,15 @@ struct FieldExtractor: Sendable {
             }
         }
 
-        // ---- Pass 2: 流水号 regex ----
-        if result["流水号"]?.value.isEmpty ?? true {
+        // ---- Pass 2: 住院号 regex ----
+        if result["住院号"]?.value.isEmpty ?? true {
             for item in filtered {
                 let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
                 if consumedTexts.contains(text) { continue }
                 let r = NSRange(location: 0, length: (text as NSString).length)
                 if serialRegex.firstMatch(in: text, options: [], range: r) != nil, text.count >= 8 {
                     let conf = confidenceLevel(item.confidence)
-                    result["流水号"] = ExtractedField(value: text, confidence: conf, isInferred: false)
+                    result["住院号"] = ExtractedField(value: text, confidence: conf, isInferred: false)
                     consumedTexts.insert(text)
                     break
                 }
@@ -262,13 +262,13 @@ struct FieldExtractor: Sendable {
 
     private func inferSerial(_ result: inout [String: ExtractedField],
                              from items: [OCRItem], consumed: inout Set<String>) {
-        guard result["流水号"]?.value.isEmpty ?? true else { return }
+        guard result["住院号"]?.value.isEmpty ?? true else { return }
         for item in items {
             let text = item.text.trimmingCharacters(in: .whitespacesAndNewlines)
             if consumed.contains(text) { continue }
             let r = NSRange(location: 0, length: (text as NSString).length)
             if serialRegex.firstMatch(in: text, options: [], range: r) != nil, text.count >= 8 {
-                result["流水号"] = makeField(text, confidenceLevel(item.confidence), inferred: true)
+                result["住院号"] = makeField(text, confidenceLevel(item.confidence), inferred: true)
                 consumed.insert(text)
                 return
             }
@@ -398,7 +398,7 @@ struct FieldExtractor: Sendable {
             "姓名":     ExtractedField(value: "", confidence: "low", isInferred: false),
             "性别":     ExtractedField(value: "", confidence: "low", isInferred: false),
             "年龄":     ExtractedField(value: "", confidence: "low", isInferred: false),
-            "流水号":   ExtractedField(value: "", confidence: "low", isInferred: false),
+            "住院号":   ExtractedField(value: "", confidence: "low", isInferred: false),
             "采血时间": ExtractedField(value: "", confidence: "low", isInferred: false),
             "科室":     ExtractedField(value: "", confidence: "low", isInferred: false),
             "床号":     ExtractedField(value: "", confidence: "low", isInferred: false),

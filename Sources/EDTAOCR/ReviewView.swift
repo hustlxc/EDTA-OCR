@@ -13,8 +13,8 @@ struct ReviewView: View {
     @State private var bedNumber = ""
     @State private var didLoadFields = false
 
-    private let fieldOrder = ["姓名", "性别", "年龄", "流水号", "子弹头编号", "采血时间", "科室", "床号"]
-    private let requiredFields = ["姓名", "流水号", "子弹头编号"]
+    private let fieldOrder = ["姓名", "性别", "年龄", "住院号", "子弹头编号", "采血时间", "科室", "床号"]
+    private let requiredFields = ["姓名", "住院号", "子弹头编号"]
     private var recognizedFieldCount: Int {
         fieldOrder.filter {
             !value(for: $0).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -109,7 +109,7 @@ struct ReviewView: View {
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text("核对字段")
                                         .font(.system(size: 16, weight: .semibold))
-                                    Text("姓名和流水号为必填项，保存前请核对。")
+                                    Text("姓名和住院号为必填项，保存前请核对。")
                                         .font(.system(size: 11))
                                         .foregroundStyle(.secondary)
                                 }
@@ -150,11 +150,11 @@ struct ReviewView: View {
                             )
 
                             FieldRow(
-                                label: "流水号",
+                                label: "住院号",
                                 value: $serialNumber,
-                                confidence: confidence(for: "流水号"),
-                                isInferred: isInferred("流水号"),
-                                isAIExtracted: isAIExtracted("流水号"),
+                                confidence: confidence(for: "住院号"),
+                                isInferred: isInferred("住院号"),
+                                isAIExtracted: isAIExtracted("住院号"),
                                 isRequired: true,
                                 isGender: false
                             )
@@ -290,7 +290,7 @@ struct ReviewView: View {
         let extractedGender = state.extractedFields["性别"]?.value ?? ""
         gender = extractedGender == "女" ? "女" : "男"
         age = state.extractedFields["年龄"]?.value ?? ""
-        serialNumber = state.extractedFields["流水号"]?.value ?? ""
+        serialNumber = state.extractedFields["住院号"]?.value ?? ""
         bulletNumber = state.db.nextBulletNumber()
         collectionTime = state.extractedFields["采血时间"]?.value ?? ""
         department = state.extractedFields["科室"]?.value ?? ""
@@ -302,7 +302,7 @@ struct ReviewView: View {
         case "姓名": return name
         case "性别": return gender
         case "年龄": return age
-        case "流水号": return serialNumber
+        case "住院号": return serialNumber
         case "子弹头编号": return bulletNumber
         case "采血时间": return collectionTime
         case "科室": return department
@@ -329,7 +329,7 @@ struct ReviewView: View {
             gender = extractedGender == "女" ? "女" : "男"
         }
         age = fields["年龄"]?.value ?? ""
-        serialNumber = fields["流水号"]?.value ?? ""
+        serialNumber = fields["住院号"]?.value ?? ""
         collectionTime = fields["采血时间"]?.value ?? ""
         department = fields["科室"]?.value ?? ""
         bedNumber = fields["床号"]?.value ?? ""
@@ -339,7 +339,7 @@ struct ReviewView: View {
         if let value = fields["姓名"]?.value { name = value }
         if let value = fields["性别"]?.value, !value.isEmpty { gender = value == "女" ? "女" : "男" }
         if let value = fields["年龄"]?.value { age = value }
-        if let value = fields["流水号"]?.value { serialNumber = value }
+        if let value = fields["住院号"]?.value { serialNumber = value }
         if let value = fields["采血时间"]?.value { collectionTime = value }
         if let value = fields["科室"]?.value { department = value }
         if let value = fields["床号"]?.value { bedNumber = value }
@@ -421,7 +421,7 @@ struct ReviewView: View {
         guard !trimmedName.isEmpty, !serial.isEmpty, !bullet.isEmpty else {
             let alert = NSAlert()
             alert.messageText = "验证提示"
-            alert.informativeText = "姓名、流水号和子弹头编号不能为空，请填写后再保存。"
+            alert.informativeText = "姓名、住院号和子弹头编号不能为空，请填写后再保存。"
             alert.runModal()
             return
         }
@@ -437,7 +437,7 @@ struct ReviewView: View {
         if imageExists || recordExists {
             let alert = NSAlert()
             alert.messageText = "数据已存在"
-            alert.informativeText = "流水号 \(serial) 的记录已存在。\n\n是否覆盖原有的图像和数据？"
+            alert.informativeText = "住院号 \(serial) 的记录已存在。\n\n是否覆盖原有的图像和数据？"
             alert.alertStyle = .warning
             alert.addButton(withTitle: "覆盖")
             alert.addButton(withTitle: "取消")
@@ -489,7 +489,7 @@ struct ReviewView: View {
                     infoRow("姓名:", name)
                     infoRow("性别:", gender)
                     infoRow("年龄:", age)
-                    infoRow("流水号:", serialNumber)
+                    infoRow("住院号:", serialNumber)
                     infoRow("子弹头编号:", bulletNumber)
                     infoRow("科室:", department)
                     infoRow("床号:", bedNumber)

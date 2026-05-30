@@ -4,7 +4,7 @@ import Foundation
 class DatabaseManager {
     private var db: OpaquePointer?
     private let selectColumns = """
-        id, 姓名, 性别, 年龄, 流水号, 子弹头编号, 采血时间, 科室, 床号, 原始OCR文本, 录入时间
+        id, 姓名, 性别, 年龄, 住院号, 子弹头编号, 采血时间, 科室, 床号, 原始OCR文本, 录入时间
         """
 
     init() {
@@ -28,7 +28,7 @@ class DatabaseManager {
             姓名 TEXT DEFAULT '',
             性别 TEXT DEFAULT '',
             年龄 TEXT DEFAULT '',
-            流水号 TEXT DEFAULT '',
+            住院号 TEXT DEFAULT '',
             子弹头编号 TEXT DEFAULT '',
             采血时间 TEXT DEFAULT '',
             科室 TEXT DEFAULT '',
@@ -36,7 +36,7 @@ class DatabaseManager {
             原始OCR文本 TEXT DEFAULT '',
             录入时间 TEXT DEFAULT (datetime('now','localtime'))
         );
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_serial ON records(流水号);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_serial ON records(住院号);
         CREATE INDEX IF NOT EXISTS idx_time ON records(录入时间);
         """
         if sqlite3_exec(db, sql, nil, nil, nil) != SQLITE_OK {
@@ -45,11 +45,12 @@ class DatabaseManager {
         // Migration: add column if upgrading from older schema
         sqlite3_exec(db, "ALTER TABLE records ADD COLUMN 原始OCR文本 TEXT DEFAULT '';", nil, nil, nil)
         sqlite3_exec(db, "ALTER TABLE records ADD COLUMN 子弹头编号 TEXT DEFAULT '';", nil, nil, nil)
+        sqlite3_exec(db, "ALTER TABLE records RENAME COLUMN 流水号 TO 住院号;", nil, nil, nil)
     }
 
     func serialExists(_ serial: String) -> Bool {
         guard let db = db, !serial.isEmpty else { return false }
-        let sql = "SELECT COUNT(*) FROM records WHERE 流水号 = ?;"
+        let sql = "SELECT COUNT(*) FROM records WHERE 住院号 = ?;"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
         defer { sqlite3_finalize(stmt) }
@@ -66,7 +67,7 @@ class DatabaseManager {
                 rawOCRText: String) -> Bool {
         guard let db = db else { return false }
         if !serialNumber.isEmpty && serialExists(serialNumber) {
-            let del = "DELETE FROM records WHERE 流水号 = ?;"
+            let del = "DELETE FROM records WHERE 住院号 = ?;"
             var delStmt: OpaquePointer?
             if sqlite3_prepare_v2(db, del, -1, &delStmt, nil) == SQLITE_OK {
                 sqlite3_bind_text(delStmt, 1, (serialNumber as NSString).utf8String, -1, nil)
@@ -76,7 +77,7 @@ class DatabaseManager {
         }
 
         let sql = """
-        INSERT INTO records (姓名, 性别, 年龄, 流水号, 子弹头编号, 采血时间, 科室, 床号, 原始OCR文本)
+        INSERT INTO records (姓名, 性别, 年龄, 住院号, 子弹头编号, 采血时间, 科室, 床号, 原始OCR文本)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
         """
         var stmt: OpaquePointer?
@@ -98,7 +99,7 @@ class DatabaseManager {
 
     func fetchRecent(limit: Int = 100) -> [Record] {
         guard let db = db else { return [] }
-        let sql = "SELECT \(selectColumns) FROM records ORDER BY id DESC LIMIT ?;"
+        let sql = "SELECT \(selectColumns) FROM records ORDER BY CAST(子弹头编号 AS INTEGER) DESC, id DESC LIMIT ?;"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
         defer { sqlite3_finalize(stmt) }
@@ -134,14 +135,14 @@ class DatabaseManager {
         WHERE 姓名 LIKE ?
            OR 性别 LIKE ?
            OR 年龄 LIKE ?
-           OR 流水号 LIKE ?
+           OR 住院号 LIKE ?
            OR 子弹头编号 LIKE ?
            OR 采血时间 LIKE ?
            OR 科室 LIKE ?
            OR 床号 LIKE ?
            OR 原始OCR文本 LIKE ?
            OR 录入时间 LIKE ?
-        ORDER BY id DESC
+        ORDER BY CAST(子弹头编号 AS INTEGER) DESC, id DESC
         LIMIT ?;
         """
         var stmt: OpaquePointer?
@@ -175,7 +176,7 @@ class DatabaseManager {
 
     func deleteRecord(serial: String) -> Bool {
         guard let db = db, !serial.isEmpty else { return false }
-        let sql = "DELETE FROM records WHERE 流水号 = ?;"
+        let sql = "DELETE FROM records WHERE 住院号 = ?;"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
         defer { sqlite3_finalize(stmt) }
@@ -185,12 +186,12 @@ class DatabaseManager {
 
     func exportCSV(to path: String) -> Bool {
         guard let db = db else { return false }
-        let sql = "SELECT \(selectColumns) FROM records ORDER BY id;"
+        let sql = "SELECT \(selectColumns) FROM records ORDER BY CAST(子弹头编号 AS INTEGER) DESC, id;"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
         defer { sqlite3_finalize(stmt) }
 
-        var csv = "ID,姓名,性别,年龄,流水号,子弹头编号,采血时间,科室,床号,录入时间\n"
+        var csv = "ID,姓名,性别,年龄,住院号,子弹头编号,采血时间,科室,床号,录入时间\n"
         let exportCols = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10] // skip col 9 (原始OCR文本)
         while sqlite3_step(stmt) == SQLITE_ROW {
             let cols = exportCols.map { col -> String in

@@ -67,7 +67,7 @@ struct HistoryView: View {
             HStack(spacing: 12) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("搜索姓名、流水号、子弹头编号、科室、床号或 OCR 文本", text: $searchText)
+                TextField("搜索姓名、住院号、子弹头编号、科室、床号或 OCR 文本", text: $searchText)
                     .textFieldStyle(.roundedBorder)
                 Text("共 \(records.count) 条")
                     .font(.system(size: 12))
@@ -96,7 +96,7 @@ struct HistoryView: View {
                             .width(40)
                         TableColumn("年龄") { Text($0.age).font(.system(size: 12)) }
                             .width(44)
-                        TableColumn("流水号") {
+                        TableColumn("住院号") {
                             Text($0.serialNumber).font(.system(size: 11, design: .monospaced))
                         }
                         .width(120)
@@ -154,7 +154,7 @@ struct HistoryView: View {
                 refreshRecords()
             }
         } message: {
-            Text("流水号 \(pendingDeleteSerial) 的记录和图片将被永久删除，不可恢复。")
+            Text("住院号 \(pendingDeleteSerial) 的记录和图片将被永久删除，不可恢复。")
         }
     }
 
@@ -375,7 +375,7 @@ struct HistoryView: View {
                     editRow("姓名:", $editName)
                     editRowGender("性别:", $editGender)
                     editRow("年龄:", $editAge)
-                    editRow("流水号:", $editSerial)
+                    editRow("住院号:", $editSerial)
                     editRow("子弹头编号:", $editBullet)
                     editRow("采血时间:", $editTime)
                     editRow("科室:", $editDept)

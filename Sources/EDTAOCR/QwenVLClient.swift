@@ -32,7 +32,7 @@ struct QwenVLClient: Sendable {
         let 姓名: String?
         let 性别: String?
         let 年龄: String?
-        let 流水号: String?
+        let 住院号: String?
         let 采血时间: String?
         let 科室: String?
         let 床号: String?
@@ -62,12 +62,12 @@ struct QwenVLClient: Sendable {
         姓名: patient name (2-4 Chinese characters)
         性别: gender (男 or 女)
         年龄: age number
-        流水号: serial number (long digit/alphanumeric string)
+        住院号: serial number (long digit/alphanumeric string)
         采血时间: blood collection datetime
         科室: hospital department
         床号: bed number
 
-        Return: {"姓名":"...","性别":"...","年龄":"...","流水号":"...","采血时间":"...","科室":"...","床号":"..."}
+        Return: {"姓名":"...","性别":"...","年龄":"...","住院号":"...","采血时间":"...","科室":"...","床号":"..."}
         """
 
         let requestBody: [String: Any] = [
