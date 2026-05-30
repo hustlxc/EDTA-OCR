@@ -97,7 +97,7 @@ class DatabaseManager {
         return sqlite3_step(stmt) == SQLITE_DONE
     }
 
-    func fetchRecent(limit: Int = 10000) -> [Record] {
+    func fetchRecent(limit: Int = 100000) -> [Record] {
         guard let db = db else { return [] }
         let sql = "SELECT \(selectColumns) FROM records ORDER BY CAST(子弹头编号 AS INTEGER) DESC, id DESC LIMIT ?;"
         var stmt: OpaquePointer?
@@ -125,7 +125,7 @@ class DatabaseManager {
         return records
     }
 
-    func search(_ query: String, limit: Int = 10000) -> [Record] {
+    func search(_ query: String, limit: Int = 100000) -> [Record] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return fetchRecent(limit: limit) }
         guard let db = db else { return [] }
