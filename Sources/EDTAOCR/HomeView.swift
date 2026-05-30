@@ -122,9 +122,6 @@ struct HomeView: View {
         .font(.system(size: 13))
     }
 
-    @State private var boxInput = ""
-    @State private var holeInput = ""
-
     private var boxHoleSettings: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
@@ -143,29 +140,27 @@ struct HomeView: View {
                     .foregroundStyle(.secondary)
                 TextField("盒号", text: Binding(
                     get: { state.firstBoxNumber > 0 ? String(state.firstBoxNumber) : "" },
-                    set: { boxInput = $0 }
+                    set: { newValue in
+                        if let v = Int(newValue), v > 0 {
+                            state.saveBoxSettings(box: v, hole: state.firstHolePosition)
+                        }
+                    }
                 ))
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 50)
-                .onSubmit {
-                    if let v = Int(boxInput), v > 0 {
-                        state.saveBoxSettings(box: v, hole: state.firstHolePosition)
-                    }
-                }
                 Text("孔")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                 TextField("1-81", text: Binding(
                     get: { state.firstHolePosition > 0 ? String(state.firstHolePosition) : "" },
-                    set: { holeInput = $0 }
+                    set: { newValue in
+                        if let v = Int(newValue), v >= 1, v <= 81 {
+                            state.saveBoxSettings(box: state.firstBoxNumber, hole: v)
+                        }
+                    }
                 ))
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 50)
-                .onSubmit {
-                    if let v = Int(holeInput), v >= 1, v <= 81 {
-                        state.saveBoxSettings(box: state.firstBoxNumber, hole: v)
-                    }
-                }
             }
         }
     }
