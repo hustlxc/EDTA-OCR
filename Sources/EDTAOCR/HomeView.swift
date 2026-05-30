@@ -46,6 +46,9 @@ struct HomeView: View {
                         if CameraManager.cameras.count > 1 {
                             cameraPicker
                         }
+                        if state.recordCount > 0 {
+                            boxHoleSettings
+                        }
                         metricRow(
                             icon: state.hasQwenAPIKey ? "sparkles" : "wand.and.stars.inverse",
                             title: "AI 增强",
@@ -117,6 +120,54 @@ struct HomeView: View {
             .frame(width: 180)
         }
         .font(.system(size: 13))
+    }
+
+    @State private var boxInput = ""
+    @State private var holeInput = ""
+
+    private var boxHoleSettings: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: "square.grid.3x3")
+                    .foregroundStyle(.orange)
+                    .frame(width: 18)
+                Text("标本盒位置")
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .font(.system(size: 13))
+
+            HStack(spacing: 8) {
+                Text("首管(\(state.minBulletNumber.map(String.init) ?? "-")) → 盒")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                TextField("盒号", text: Binding(
+                    get: { state.firstBoxNumber > 0 ? String(state.firstBoxNumber) : "" },
+                    set: { boxInput = $0 }
+                ))
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 50)
+                .onSubmit {
+                    if let v = Int(boxInput), v > 0 {
+                        state.saveBoxSettings(box: v, hole: state.firstHolePosition)
+                    }
+                }
+                Text("孔")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                TextField("1-81", text: Binding(
+                    get: { state.firstHolePosition > 0 ? String(state.firstHolePosition) : "" },
+                    set: { holeInput = $0 }
+                ))
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 50)
+                .onSubmit {
+                    if let v = Int(holeInput), v >= 1, v <= 81 {
+                        state.saveBoxSettings(box: state.firstBoxNumber, hole: v)
+                    }
+                }
+            }
+        }
     }
 
     private func metricRow(icon: String, title: String, value: String, color: Color) -> some View {

@@ -106,10 +106,16 @@ struct HistoryView: View {
                         .width(92)
                         TableColumn("采血时间") { Text($0.collectionTime).font(.system(size: 11)) }
                             .width(128)
-                        TableColumn("科室") { (r: Record) in Text(r.department).font(.system(size: 12)) }
-                            .width(76)
-                        TableColumn("床号") { (r: Record) in Text(r.bedNumber).font(.system(size: 12)) }
-                            .width(56)
+                        TableColumn("科室/床号") { r in
+                            Text("\(r.department)/\(r.bedNumber)").font(.system(size: 12))
+                        }
+                        .width(100)
+                        TableColumn("盒·孔") { r in
+                            if let pos = boxPosition(for: r) {
+                                Text("\(pos.box)-\(pos.hole)").font(.system(size: 11, design: .monospaced))
+                            } else { Text("-").foregroundStyle(.secondary) }
+                        }
+                        .width(60)
                         TableColumn("录入时间") { Text($0.savedAt).font(.system(size: 11)) }
                             .width(128)
                         TableColumn("操作") { row in
@@ -173,7 +179,10 @@ struct HistoryView: View {
         panel.allowedContentTypes = [.commaSeparatedText]
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
-            let ok = state.db.exportCSV(to: url.path)
+            let ok = state.db.exportCSV(to: url.path,
+                minBullet: state.minBulletNumber,
+                firstBox: state.firstBoxNumber,
+                firstHole: state.firstHolePosition)
             if !ok {
                 let alert = NSAlert()
                 alert.messageText = "导出失败"
@@ -181,6 +190,22 @@ struct HistoryView: View {
                 alert.runModal()
             }
         }
+    }
+
+    private func boxPosition(for record: Record) -> (box: Int, hole: Int)? {
+        guard let minBullet = state.minBulletNumber,
+              state.firstBoxNumber > 0,
+              state.firstHolePosition >= 1,
+              state.firstHolePosition <= 81,
+              let bulletNum = BoxPositionCalculator.parseBulletNumber(record.bulletNumber) else {
+            return nil
+        }
+        return BoxPositionCalculator.calculate(
+            bulletNumber: bulletNum,
+            minBullet: minBullet,
+            firstBox: state.firstBoxNumber,
+            firstHole: state.firstHolePosition
+        )
     }
 
     private func refreshRecords() {

@@ -184,25 +184,42 @@ class DatabaseManager {
         return sqlite3_step(stmt) == SQLITE_DONE
     }
 
-    func exportCSV(to path: String) -> Bool {
+    func exportCSV(to path: String, minBullet: Int?, firstBox: Int, firstHole: Int) -> Bool {
         guard let db = db else { return false }
         let sql = "SELECT \(selectColumns) FROM records ORDER BY CAST(子弹头编号 AS INTEGER) DESC, id;"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
         defer { sqlite3_finalize(stmt) }
 
-        var csv = "ID,姓名,性别,年龄,住院号,子弹头编号,采血时间,科室,床号,录入时间\n"
-        let exportCols = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10] // skip col 9 (原始OCR文本)
+        var csv = "ID,姓名,性别,年龄,住院号,子弹头编号,采血时间,科室,床号,盒·孔,录入时间\n"
+        let rowCols: [(index: Int32, label: String)] = [
+            (0, "id"), (1, "姓名"), (2, "性别"), (3, "年龄"), (4, "住院号"),
+            (5, "子弹头编号"), (6, "采血时间"), (7, "科室"), (8, "床号"),
+        ]
         while sqlite3_step(stmt) == SQLITE_ROW {
-            let cols = exportCols.map { col -> String in
-                guard let ptr = sqlite3_column_text(stmt, Int32(col)) else { return "" }
+            // Build fixed columns
+            var cols = rowCols.map { colInfo -> String in
+                guard let ptr = sqlite3_column_text(stmt, colInfo.index) else { return "" }
                 let val = String(cString: ptr)
-                // Escape CSV: wrap in quotes if contains comma, quote, or newline
                 if val.contains(",") || val.contains("\"") || val.contains("\n") {
                     return "\"\(val.replacingOccurrences(of: "\"", with: "\"\""))\""
                 }
                 return val
             }
+            // Calculate box-hole
+            var boxHole = ""
+            if let bulletPtr = sqlite3_column_text(stmt, 5),
+               let bulletNum = Int(String(cString: bulletPtr)),
+               let m = minBullet, m > 0, firstBox > 0, firstHole >= 1, firstHole <= 81 {
+                if let pos = BoxPositionCalculator.calculate(bulletNumber: bulletNum, minBullet: m, firstBox: firstBox, firstHole: firstHole) {
+                    boxHole = "\(pos.box)-\(pos.hole)"
+                }
+            }
+            cols.append(boxHole)
+            // 录入时间
+            let savedAt = sqlite3_column_text(stmt, 10).map { String(cString: $0) } ?? ""
+            cols.append(savedAt)
+
             csv += cols.joined(separator: ",") + "\n"
         }
 
@@ -214,6 +231,19 @@ class DatabaseManager {
             print("CSV export failed: \(error)")
             return false
         }
+    }
+
+    func minBulletNumber() -> Int? {
+        guard let db = db else { return nil }
+        let sql = "SELECT MIN(CAST(子弹头编号 AS INTEGER)) FROM records WHERE 子弹头编号 <> '' AND 子弹头编号 IS NOT NULL;"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(stmt) }
+        if sqlite3_step(stmt) == SQLITE_ROW {
+            let v = sqlite3_column_int(stmt, 0)
+            return v > 0 ? Int(v) : nil
+        }
+        return nil
     }
 
     func count() -> Int {

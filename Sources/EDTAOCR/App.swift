@@ -49,8 +49,23 @@ class AppState {
     let extractor = FieldExtractor()
     let qwenVL = QwenVLClient()
 
+    // Box position settings
+    var firstBoxNumber: Int = UserDefaults.standard.integer(forKey: "first_box_number")
+    var firstHolePosition: Int = UserDefaults.standard.integer(forKey: "first_hole_position")
+
+    var minBulletNumber: Int? {
+        db.minBulletNumber()
+    }
+
     var recordCount: Int { db.count() }
     var hasQwenAPIKey: Bool { !qwenAPIKey.isEmpty }
+
+    func saveBoxSettings(box: Int, hole: Int) {
+        firstBoxNumber = max(1, box)
+        firstHolePosition = min(81, max(1, hole))
+        UserDefaults.standard.set(firstBoxNumber, forKey: "first_box_number")
+        UserDefaults.standard.set(firstHolePosition, forKey: "first_hole_position")
+    }
 
     enum Screen {
         case home
