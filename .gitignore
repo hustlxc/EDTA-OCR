@@ -6,3 +6,4 @@ captures/
 capture_tool
 .DS_Store
 *.csv
+*.bk
