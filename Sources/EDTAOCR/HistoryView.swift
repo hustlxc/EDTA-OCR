@@ -293,13 +293,13 @@ struct HistoryView: View {
 
     @ViewBuilder
     private func capturedImage(for record: Record) -> some View {
-        if let path = state.ocr.capturedImagePath(serialNumber: record.serialNumber),
+        if let path = state.ocr.capturedImagePath(serialNumber: record.bulletNumber),
            let image = NSImage(contentsOfFile: path) {
             Image(nsImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(maxWidth: .infinity)
-                .frame(height: 170)
+                .frame(height: 255)
                 .background(Color.black.opacity(0.04))
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.18)))
@@ -313,7 +313,7 @@ struct HistoryView: View {
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 150)
+            .frame(height: 225)
             .background(Color(nsColor: .controlBackgroundColor))
             .clipShape(RoundedRectangle(cornerRadius: 8))
         }
