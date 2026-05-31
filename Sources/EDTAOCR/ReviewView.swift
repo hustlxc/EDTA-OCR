@@ -432,7 +432,7 @@ struct ReviewView: View {
         let dept = department.trimmingCharacters(in: .whitespaces)
         let bed = bedNumber.trimmingCharacters(in: .whitespaces)
 
-        let imageExists = !bullet.isEmpty && state.ocr.imageExistsInCaptures(serialNumber: bullet)
+        let imageExists = !bullet.isEmpty && state.ocr.imageExistsInCaptures(bulletNumber: bullet)
         let recordExists = state.db.bulletExists(bullet)
         if imageExists || recordExists {
             let alert = NSAlert()
@@ -445,7 +445,7 @@ struct ReviewView: View {
         }
 
         if !bullet.isEmpty, let tempPath = state.capturedImagePath {
-            _ = state.ocr.saveToCaptures(sourceTempPath: tempPath, serialNumber: bullet)
+            _ = state.ocr.saveToCaptures(sourceTempPath: tempPath, bulletNumber: bullet)
         }
 
         let rawText = state.ocrResults.map(\.text).joined(separator: "\n")

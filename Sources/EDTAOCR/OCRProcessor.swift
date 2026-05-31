@@ -80,8 +80,8 @@ struct OCRProcessor: Sendable {
         return dir
     }()
 
-    func saveToCaptures(sourceTempPath: String, serialNumber: String) -> String? {
-        let dest = "\(OCRProcessor.capturesDir)/\(serialNumber).png"
+    func saveToCaptures(sourceTempPath: String, bulletNumber: String) -> String? {
+        let dest = "\(OCRProcessor.capturesDir)/\(bulletNumber).png"
         let destURL = URL(fileURLWithPath: dest)
 
         // If destination already exists, overwrite
@@ -98,18 +98,18 @@ struct OCRProcessor: Sendable {
         }
     }
 
-    func deleteImage(serialNumber: String) {
-        let path = "\(OCRProcessor.capturesDir)/\(serialNumber).png"
+    func deleteImage(bulletNumber: String) {
+        let path = "\(OCRProcessor.capturesDir)/\(bulletNumber).png"
         try? FileManager.default.removeItem(atPath: path)
     }
 
-    func capturedImagePath(serialNumber: String) -> String? {
-        let path = "\(OCRProcessor.capturesDir)/\(serialNumber).png"
+    func capturedImagePath(bulletNumber: String) -> String? {
+        let path = "\(OCRProcessor.capturesDir)/\(bulletNumber).png"
         return FileManager.default.fileExists(atPath: path) ? path : nil
     }
 
-    func imageExistsInCaptures(serialNumber: String) -> Bool {
-        let path = "\(OCRProcessor.capturesDir)/\(serialNumber).png"
+    func imageExistsInCaptures(bulletNumber: String) -> Bool {
+        let path = "\(OCRProcessor.capturesDir)/\(bulletNumber).png"
         return FileManager.default.fileExists(atPath: path)
     }
 

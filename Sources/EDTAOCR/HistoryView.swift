@@ -156,7 +156,7 @@ struct HistoryView: View {
             Button("取消", role: .cancel) {}
             Button("删除", role: .destructive) {
                 _ = state.db.deleteRecord(bullet: pendingDeleteBullet)
-                state.ocr.deleteImage(serialNumber: pendingDeleteBullet)
+                state.ocr.deleteImage(bulletNumber: pendingDeleteBullet)
                 refreshRecords()
             }
         } message: {
@@ -293,7 +293,7 @@ struct HistoryView: View {
 
     @ViewBuilder
     private func capturedImage(for record: Record) -> some View {
-        if let path = state.ocr.capturedImagePath(serialNumber: record.bulletNumber),
+        if let path = state.ocr.capturedImagePath(bulletNumber: record.bulletNumber),
            let image = NSImage(contentsOfFile: path) {
             Image(nsImage: image)
                 .resizable()
