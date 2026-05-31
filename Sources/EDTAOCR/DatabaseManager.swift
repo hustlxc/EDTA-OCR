@@ -36,7 +36,7 @@ class DatabaseManager {
             原始OCR文本 TEXT DEFAULT '',
             录入时间 TEXT DEFAULT (datetime('now','localtime'))
         );
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_serial ON records(住院号);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_bullet ON records(子弹头编号);
         CREATE INDEX IF NOT EXISTS idx_time ON records(录入时间);
         """
         if sqlite3_exec(db, sql, nil, nil, nil) != SQLITE_OK {
@@ -46,15 +46,17 @@ class DatabaseManager {
         sqlite3_exec(db, "ALTER TABLE records ADD COLUMN 原始OCR文本 TEXT DEFAULT '';", nil, nil, nil)
         sqlite3_exec(db, "ALTER TABLE records ADD COLUMN 子弹头编号 TEXT DEFAULT '';", nil, nil, nil)
         sqlite3_exec(db, "ALTER TABLE records RENAME COLUMN 流水号 TO 住院号;", nil, nil, nil)
+        sqlite3_exec(db, "DROP INDEX IF EXISTS idx_serial;", nil, nil, nil)
+        sqlite3_exec(db, "CREATE UNIQUE INDEX IF NOT EXISTS idx_bullet ON records(子弹头编号);", nil, nil, nil)
     }
 
-    func serialExists(_ serial: String) -> Bool {
-        guard let db = db, !serial.isEmpty else { return false }
-        let sql = "SELECT COUNT(*) FROM records WHERE 住院号 = ?;"
+    func bulletExists(_ bullet: String) -> Bool {
+        guard let db = db, !bullet.isEmpty else { return false }
+        let sql = "SELECT COUNT(*) FROM records WHERE 子弹头编号 = ?;"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
         defer { sqlite3_finalize(stmt) }
-        sqlite3_bind_text(stmt, 1, (serial as NSString).utf8String, -1, nil)
+        sqlite3_bind_text(stmt, 1, (bullet as NSString).utf8String, -1, nil)
         if sqlite3_step(stmt) == SQLITE_ROW {
             return sqlite3_column_int(stmt, 0) > 0
         }
@@ -66,11 +68,11 @@ class DatabaseManager {
                 collectionTime: String, department: String, bedNumber: String,
                 rawOCRText: String) -> Bool {
         guard let db = db else { return false }
-        if !serialNumber.isEmpty && serialExists(serialNumber) {
-            let del = "DELETE FROM records WHERE 住院号 = ?;"
+        if !bulletNumber.isEmpty && bulletExists(bulletNumber) {
+            let del = "DELETE FROM records WHERE 子弹头编号 = ?;"
             var delStmt: OpaquePointer?
             if sqlite3_prepare_v2(db, del, -1, &delStmt, nil) == SQLITE_OK {
-                sqlite3_bind_text(delStmt, 1, (serialNumber as NSString).utf8String, -1, nil)
+                sqlite3_bind_text(delStmt, 1, (bulletNumber as NSString).utf8String, -1, nil)
                 sqlite3_step(delStmt)
                 sqlite3_finalize(delStmt)
             }
@@ -174,13 +176,13 @@ class DatabaseManager {
         return records
     }
 
-    func deleteRecord(serial: String) -> Bool {
-        guard let db = db, !serial.isEmpty else { return false }
-        let sql = "DELETE FROM records WHERE 住院号 = ?;"
+    func deleteRecord(bullet: String) -> Bool {
+        guard let db = db, !bullet.isEmpty else { return false }
+        let sql = "DELETE FROM records WHERE 子弹头编号 = ?;"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
         defer { sqlite3_finalize(stmt) }
-        sqlite3_bind_text(stmt, 1, (serial as NSString).utf8String, -1, nil)
+        sqlite3_bind_text(stmt, 1, (bullet as NSString).utf8String, -1, nil)
         return sqlite3_step(stmt) == SQLITE_DONE
     }
 

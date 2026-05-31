@@ -10,7 +10,7 @@ struct HistoryView: View {
     @State private var selectedRecord: Record?
     @State private var showEditSheet = false
     @State private var showDeleteConfirm = false
-    @State private var pendingDeleteSerial = ""
+    @State private var pendingDeleteBullet = ""
 
     // Edit form values
     @State private var editName = ""
@@ -155,12 +155,12 @@ struct HistoryView: View {
         .alert("确认删除", isPresented: $showDeleteConfirm) {
             Button("取消", role: .cancel) {}
             Button("删除", role: .destructive) {
-                _ = state.db.deleteRecord(serial: pendingDeleteSerial)
-                state.ocr.deleteImage(serialNumber: pendingDeleteSerial)
+                _ = state.db.deleteRecord(bullet: pendingDeleteBullet)
+                state.ocr.deleteImage(serialNumber: pendingDeleteBullet)
                 refreshRecords()
             }
         } message: {
-            Text("住院号 \(pendingDeleteSerial) 的记录和图片将被永久删除，不可恢复。")
+            Text("子弹头编号 \(pendingDeleteBullet) 的记录和图片将被永久删除，不可恢复。")
         }
     }
 
@@ -356,9 +356,9 @@ struct HistoryView: View {
         guard !serial.isEmpty else { return }
         let bullet = editBullet.trimmingCharacters(in: .whitespaces)
         guard !bullet.isEmpty else { return }
-        // If serial number changed, delete the old record first to avoid duplicates
-        if let oldSerial = selectedRecord?.serialNumber, oldSerial != serial {
-            _ = state.db.deleteRecord(serial: oldSerial)
+        // If bullet number changed, delete the old record first to avoid duplicates
+        if let oldBullet = selectedRecord?.bulletNumber, oldBullet != bullet {
+            _ = state.db.deleteRecord(bullet: oldBullet)
         }
         _ = state.db.upsert(
             name: name, gender: editGender, age: editAge,
@@ -369,14 +369,14 @@ struct HistoryView: View {
             rawOCRText: selectedRecord?.rawOCRText ?? ""
         )
         refreshRecords()
-        selectedRecordID = records.first(where: { $0.serialNumber == serial })?.id
+        selectedRecordID = records.first(where: { $0.bulletNumber == bullet })?.id
         showEditSheet = false
     }
 
     // MARK: - Delete
 
     private func confirmDelete(_ record: Record) {
-        pendingDeleteSerial = record.serialNumber
+        pendingDeleteBullet = record.bulletNumber
         showDeleteConfirm = true
     }
 

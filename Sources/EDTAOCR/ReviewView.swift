@@ -432,20 +432,20 @@ struct ReviewView: View {
         let dept = department.trimmingCharacters(in: .whitespaces)
         let bed = bedNumber.trimmingCharacters(in: .whitespaces)
 
-        let imageExists = !serial.isEmpty && state.ocr.imageExistsInCaptures(serialNumber: serial)
-        let recordExists = state.db.serialExists(serial)
+        let imageExists = !bullet.isEmpty && state.ocr.imageExistsInCaptures(serialNumber: bullet)
+        let recordExists = state.db.bulletExists(bullet)
         if imageExists || recordExists {
             let alert = NSAlert()
             alert.messageText = "数据已存在"
-            alert.informativeText = "住院号 \(serial) 的记录已存在。\n\n是否覆盖原有的图像和数据？"
+            alert.informativeText = "子弹头编号 \(bullet) 的记录已存在。\n\n是否覆盖原有的图像和数据？"
             alert.alertStyle = .warning
             alert.addButton(withTitle: "覆盖")
             alert.addButton(withTitle: "取消")
             if alert.runModal() != .alertFirstButtonReturn { return }
         }
 
-        if !serial.isEmpty, let tempPath = state.capturedImagePath {
-            _ = state.ocr.saveToCaptures(sourceTempPath: tempPath, serialNumber: serial)
+        if !bullet.isEmpty, let tempPath = state.capturedImagePath {
+            _ = state.ocr.saveToCaptures(sourceTempPath: tempPath, serialNumber: bullet)
         }
 
         let rawText = state.ocrResults.map(\.text).joined(separator: "\n")
