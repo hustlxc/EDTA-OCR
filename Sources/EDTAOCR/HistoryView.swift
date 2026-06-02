@@ -479,6 +479,16 @@ struct HistoryView: View {
             .padding(.vertical, 14)
         }
         .frame(width: 420, height: 528)
+        .onAppear {
+            editName = record.name
+            editGender = (record.gender == "女") ? "女" : "男"
+            editAge = record.age
+            editSerial = record.serialNumber
+            editBullet = record.bulletNumber
+            editTime = record.collectionTime
+            editDept = record.department
+            editBed = record.bedNumber
+        }
     }
 
     @ViewBuilder
