@@ -2,13 +2,16 @@
 """Merge multiple EDTA-OCR databases and captures/ directories into one.
 
 Usage:
+    # Prepare a paths file (one line per source):
+    #   path1/edta_ocr.db path1/captures
+    #   path2/edta_ocr.db path2/captures
+
     # Dry run — report conflicts only
-    python3 merge_db.py --db a.db --captures a_captures/ --db b.db --captures b_captures/
+    python3 merge_db.py paths.txt
 
-    # Force merge (last --db wins on conflict)
-    python3 merge_db.py --db a.db --captures a_captures/ --db b.db --captures b_captures/ --force --out merged.db
+    # Force merge (last entry wins on conflict)
+    python3 merge_db.py paths.txt --force --out merged.db --out-captures merged_captures/
 
-Each --db must be followed by its corresponding --captures directory.
 Without --force, conflicts are reported but nothing is written.
 """
 
@@ -36,11 +39,13 @@ def load_db(db_path, cap_dir):
     return records
 
 def main():
-    parser = argparse.ArgumentParser(description="Merge EDTA-OCR databases")
-    parser.add_argument("--db", action="append", dest="dbs", default=[],
-                        help="Input database file (pair with --captures)")
-    parser.add_argument("--captures", action="append", dest="caps", default=[],
-                        help="Captures directory for preceding --db")
+    parser = argparse.ArgumentParser(
+        description="Merge EDTA-OCR databases",
+        epilog="Example input file (paths.txt):\n"
+               "  path1/edta_ocr.db path1/captures\n"
+               "  path2/edta_ocr.db path2/captures")
+    parser.add_argument("input_file",
+                        help="File with one 'db_path captures_dir' pair per line, or --db/--captures")
     parser.add_argument("--force", action="store_true",
                         help="Actually perform the merge (without this, only report conflicts)")
     parser.add_argument("--out", default="merged.db", help="Output merged database")
@@ -48,17 +53,28 @@ def main():
                         help="Output captures directory")
     args = parser.parse_args()
 
-    if len(args.dbs) != len(args.caps):
-        print("Error: each --db needs a matching --captures", file=sys.stderr)
-        sys.exit(1)
-    if not args.dbs:
-        print("Error: at least one --db required", file=sys.stderr)
+    # Parse input file
+    dbs, caps = [], []
+    with open(args.input_file) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) >= 2:
+                dbs.append(parts[0])
+                caps.append(parts[1])
+            else:
+                print(f"  [SKIP] invalid line: {line}")
+
+    if not dbs:
+        print("Error: no valid entries in input file", file=sys.stderr)
         sys.exit(1)
 
     # Load all databases
     print("Loading databases...")
     all_sources = []
-    for db_path, cap_dir in zip(args.dbs, args.caps):
+    for db_path, cap_dir in zip(dbs, caps):
         records = load_db(db_path, cap_dir)
         if records:
             all_sources.append((db_path, cap_dir, records))
