@@ -485,7 +485,7 @@ struct HistoryView: View {
             }
             .padding(.vertical, 14)
         }
-        .frame(width: 420, height: 440)
+        .frame(width: 420, height: 528)
     }
 
     @ViewBuilder
