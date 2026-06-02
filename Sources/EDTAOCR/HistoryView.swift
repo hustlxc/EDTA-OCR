@@ -13,7 +13,6 @@ struct HistoryView: View {
     @State private var pendingDeleteBullet = ""
     @State private var isAIExtracting = false
     @State private var aiEditError: String?
-    @State private var hasEditImage = false
 
     // Edit form values
     @State private var editName = ""
@@ -348,7 +347,6 @@ struct HistoryView: View {
         editTime = record.collectionTime
         editDept = record.department
         editBed = record.bedNumber
-        hasEditImage = state.ocr.imageExistsInCaptures(bulletNumber: record.bulletNumber)
         showEditSheet = true
     }
 
@@ -378,8 +376,11 @@ struct HistoryView: View {
     }
 
     private func runAIExtraction() async {
-        guard let record = selectedRecord,
-              let imagePath = state.ocr.capturedImagePath(bulletNumber: record.bulletNumber) else { return }
+        guard let record = selectedRecord else { return }
+        guard let imagePath = state.ocr.capturedImagePath(bulletNumber: record.bulletNumber) else {
+            aiEditError = "未找到截图文件"
+            return
+        }
         isAIExtracting = true
         aiEditError = nil
 
@@ -444,7 +445,7 @@ struct HistoryView: View {
             }
 
             // AI re-extraction from captured image
-            if state.hasQwenAPIKey, hasEditImage {
+            if state.hasQwenAPIKey {
                 VStack(spacing: 6) {
                     if isAIExtracting {
                         HStack(spacing: 6) {
