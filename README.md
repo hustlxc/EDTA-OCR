@@ -126,3 +126,32 @@ CREATE TABLE records (
 ```
 
 数据库文件 `edta_ocr.db` 在应用启动时自动创建。子弹头编号为唯一键，重复保存时覆盖更新。
+
+## 合并多个数据库
+
+`merge_db.py` 可将多个 EDTA-OCR 数据库及对应 captures/ 目录合并为一个。
+
+### 准备输入文件
+
+创建 `paths.txt`，每行一对数据库路径和 captures 目录：
+
+```
+path1/edta_ocr.db path1/captures
+path2/edta_ocr.db path2/captures
+```
+
+### 第一步：查重
+
+```bash
+python3 merge_db.py paths.txt
+```
+
+列出所有出现在多个数据库中的子弹头编号，不修改任何文件。
+
+### 第二步：合并
+
+```bash
+python3 merge_db.py paths.txt --force --out merged.db --out-captures merged_captures/
+```
+
+冲突时文件中靠后的记录优先，图片同名覆盖。`id` 列自动重新编号，不依赖原数据库中的 ID 值。
