@@ -2,33 +2,115 @@
 """Merge multiple EDTA-OCR databases and captures/ directories into one.
 
 Usage:
-    python3 merge_db.py --db db1.db --captures captures1/ --db db2.db --captures captures2/ --out merged.db --out-captures merged_captures/
+    # Dry run — report conflicts only
+    python3 merge_db.py --db a.db --captures a_captures/ --db b.db --captures b_captures/
+
+    # Force merge (last --db wins on conflict)
+    python3 merge_db.py --db a.db --captures a_captures/ --db b.db --captures b_captures/ --force --out merged.db
 
 Each --db must be followed by its corresponding --captures directory.
-The output DB is created fresh. Duplicates (same bullet number) keep the
-LAST record encountered. All capture images are copied to the output directory.
+Without --force, conflicts are reported but nothing is written.
 """
 
-import argparse, sqlite3, os, shutil, sys
+import argparse, sqlite3, os, shutil, sys, fnmatch
+from collections import OrderedDict
+
+def load_db(db_path, cap_dir):
+    """Load all records from a database. Returns list of dicts."""
+    if not os.path.exists(db_path):
+        print(f"  [SKIP] {db_path}: not found")
+        return []
+    conn = sqlite3.connect(db_path)
+    rows = conn.execute(
+        "SELECT 姓名,性别,年龄,住院号,子弹头编号,采血时间,科室,床号,原始OCR文本,录入时间 FROM records"
+    ).fetchall()
+    conn.close()
+    records = []
+    for r in rows:
+        records.append({
+            "name": r[0] or "", "gender": r[1] or "", "age": r[2] or "",
+            "serial": r[3] or "", "bullet": r[4] or "", "time": r[5] or "",
+            "dept": r[6] or "", "bed": r[7] or "", "ocr": r[8] or "", "saved": r[9] or "",
+            "source_db": db_path, "source_cap": cap_dir,
+        })
+    return records
 
 def main():
     parser = argparse.ArgumentParser(description="Merge EDTA-OCR databases")
-    parser.add_argument("--db", action="append", dest="dbs", default=[], help="Input database file")
-    parser.add_argument("--captures", action="append", dest="caps", default=[], help="Captures directory for preceding --db")
-    parser.add_argument("--out", required=True, help="Output merged database")
-    parser.add_argument("--out-captures", default="merged_captures", help="Output captures directory")
+    parser.add_argument("--db", action="append", dest="dbs", default=[],
+                        help="Input database file (pair with --captures)")
+    parser.add_argument("--captures", action="append", dest="caps", default=[],
+                        help="Captures directory for preceding --db")
+    parser.add_argument("--force", action="store_true",
+                        help="Actually perform the merge (without this, only report conflicts)")
+    parser.add_argument("--out", default="merged.db", help="Output merged database")
+    parser.add_argument("--out-captures", default="merged_captures",
+                        help="Output captures directory")
     args = parser.parse_args()
 
     if len(args.dbs) != len(args.caps):
         print("Error: each --db needs a matching --captures", file=sys.stderr)
         sys.exit(1)
+    if not args.dbs:
+        print("Error: at least one --db required", file=sys.stderr)
+        sys.exit(1)
 
+    # Load all databases
+    print("Loading databases...")
+    all_sources = []
+    for db_path, cap_dir in zip(args.dbs, args.caps):
+        records = load_db(db_path, cap_dir)
+        if records:
+            all_sources.append((db_path, cap_dir, records))
+            print(f"  {db_path}: {len(records)} records")
+
+    # Find conflicts: same bullet number in multiple DBs
+    print("\nChecking for conflicts...")
+    seen = OrderedDict()  # bullet -> list of (db_path, record)
+    for db_path, cap_dir, records in all_sources:
+        for rec in records:
+            b = rec["bullet"]
+            if not b:
+                continue
+            if b not in seen:
+                seen[b] = []
+            seen[b].append((db_path, rec))
+
+    conflicts = {b: entries for b, entries in seen.items() if len(entries) > 1}
+    singletons = {b: entries[0] for b, entries in seen.items() if len(entries) == 1}
+
+    if conflicts:
+        print(f"\n  {len(conflicts)} bullet numbers appear in multiple databases:")
+        for b, entries in conflicts.items():
+            names = [f"{e[1]['name']}" for e in entries]
+            dbs = [e[0] for e in entries]
+            saved_times = [e[1]["saved"] for e in entries]
+            print(f"\n  Bullet {b}:")
+            for (db, rec), saved in zip(entries, saved_times):
+                print(f"    {db}: 姓名={rec['name']} 住院号={rec['serial']} 录入={saved}")
+    else:
+        print("  No conflicts found.")
+
+    total_singletons = sum(1 for b in singletons if b)
+    total_conflicts = len(conflicts)
+    print(f"\nSummary: {total_singletons} unique records, {total_conflicts} conflicts")
+
+    if not args.force:
+        if conflicts:
+            print("\nRun with --force to merge (last --db wins on conflict, images overwritten).")
+        else:
+            print("\nNo conflicts. Run with --force to proceed with merge.")
+        return
+
+    # --- Force merge ---
+    print("\nMerging...")
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     os.makedirs(args.out_captures, exist_ok=True)
 
     out_db = sqlite3.connect(args.out)
+    out_db.execute("DROP TABLE IF EXISTS records")
     out_db.execute("""
-        CREATE TABLE IF NOT EXISTS records (
+        CREATE TABLE records (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             姓名 TEXT, 性别 TEXT, 年龄 TEXT, 住院号 TEXT,
             子弹头编号 TEXT UNIQUE, 采血时间 TEXT,
@@ -37,49 +119,53 @@ def main():
         )
     """)
 
-    total = 0
-    for db_path, cap_dir in zip(args.dbs, args.caps):
-        if not os.path.exists(db_path):
-            print(f"Skip: {db_path} not found")
-            continue
+    merged = 0
+    # Insert singletons (no conflict, just insert)
+    for b, (db_path, rec) in singletons.items():
+        out_db.execute("DELETE FROM records WHERE 子弹头编号 = ?", (b,))
+        out_db.execute(
+            "INSERT INTO records (姓名,性别,年龄,住院号,子弹头编号,采血时间,科室,床号,原始OCR文本,录入时间) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (rec["name"], rec["gender"], rec["age"], rec["serial"], b,
+             rec["time"], rec["dept"], rec["bed"], rec["ocr"], rec["saved"])
+        )
+        merged += 1
 
-        src = sqlite3.connect(db_path)
-        # Read all columns except id
-        rows = src.execute(
-            "SELECT 姓名,性别,年龄,住院号,子弹头编号,采血时间,科室,床号,原始OCR文本,录入时间 FROM records"
-        ).fetchall()
-        src.close()
-
-        for i, row in enumerate(rows):
-            name, gender, age, serial, bullet, coll_time, dept, bed, raw_ocr, saved = row
-            if not bullet:
-                continue
-            # upsert by bullet number
-            out_db.execute("DELETE FROM records WHERE 子弹头编号 = ?", (bullet,))
-            out_db.execute(
-                "INSERT INTO records (姓名,性别,年龄,住院号,子弹头编号,采血时间,科室,床号,原始OCR文本,录入时间) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                (name, gender, age, serial, bullet, coll_time, dept, bed, raw_ocr, saved)
-            )
-
-        # Copy images
-        if os.path.isdir(cap_dir):
-            copied = 0
-            for fname in os.listdir(cap_dir):
-                src_path = os.path.join(cap_dir, fname)
-                dst_path = os.path.join(args.out_captures, fname)
-                if os.path.isfile(src_path) and fname.endswith(".png"):
-                    shutil.copy2(src_path, dst_path)
-                    copied += 1
-            print(f"  {db_path}: {len(rows)} records, {copied} images")
-        else:
-            print(f"  {db_path}: {len(rows)} records, captures dir not found")
-
-        total += len(rows)
+    # Insert conflicts: last --db wins
+    for b, entries in conflicts.items():
+        _, winner = entries[-1]  # last entry wins
+        out_db.execute("DELETE FROM records WHERE 子弹头编号 = ?", (b,))
+        out_db.execute(
+            "INSERT INTO records (姓名,性别,年龄,住院号,子弹头编号,采血时间,科室,床号,原始OCR文本,录入时间) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (winner["name"], winner["gender"], winner["age"], winner["serial"], b,
+             winner["time"], winner["dept"], winner["bed"], winner["ocr"], winner["saved"])
+        )
+        merged += 1
 
     out_db.commit()
     out_db.close()
-    print(f"\nMerged: {total} rows -> {args.out}")
-    print(f"Images: {args.out_captures}/")
+
+    # Copy images from all sources
+    img_count = 0
+    img_skipped = 0
+    for db_path, cap_dir, _ in all_sources:
+        if not os.path.isdir(cap_dir):
+            continue
+        for fname in os.listdir(cap_dir):
+            if not fname.endswith(".png"):
+                continue
+            src = os.path.join(cap_dir, fname)
+            dst = os.path.join(args.out_captures, fname)
+            if os.path.exists(dst):
+                img_skipped += 1
+                if args.force:
+                    shutil.copy2(src, dst)
+            else:
+                shutil.copy2(src, dst)
+                img_count += 1
+
+    print(f"  {merged} records written to {args.out}")
+    print(f"  {img_count} images copied, {img_skipped} overwritten in {args.out_captures}/")
+    print("Done.")
 
 if __name__ == "__main__":
     main()
