@@ -19,7 +19,7 @@ enum QVModel: String, CaseIterable {
     }
 
     static func load() -> QVModel {
-        QVModel(rawValue: UserDefaults.standard.string(forKey: "qwen_vl_model") ?? "") ?? .v3Flash
+        QVModel(rawValue: UserDefaults.standard.string(forKey: "qwen_vl_model") ?? "") ?? .v36Flash
     }
 
     func save() { UserDefaults.standard.set(rawValue, forKey: "qwen_vl_model") }
