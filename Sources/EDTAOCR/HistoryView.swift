@@ -11,6 +11,8 @@ struct HistoryView: View {
     @State private var showEditSheet = false
     @State private var showDeleteConfirm = false
     @State private var pendingDeleteBullet = ""
+    @State private var isAIExtracting = false
+    @State private var aiEditError: String?
 
     // Edit form values
     @State private var editName = ""
@@ -373,6 +375,36 @@ struct HistoryView: View {
         showEditSheet = false
     }
 
+    private func runAIExtraction() async {
+        guard let record = selectedRecord,
+              let imagePath = state.ocr.capturedImagePath(bulletNumber: record.bulletNumber) else { return }
+        isAIExtracting = true
+        aiEditError = nil
+
+        do {
+            let aiFields = try await state.qwenVL.extract(
+                fromImagePath: imagePath, apiKey: state.qwenAPIKey, model: state.qwenModel
+            )
+            let mirror = Mirror(reflecting: aiFields)
+            for child in mirror.children {
+                guard let label = child.label, let value = child.value as? String, !value.isEmpty else { continue }
+                switch label {
+                case "姓名":     editName = value
+                case "性别":     editGender = (value == "女") ? "女" : "男"
+                case "年龄":     editAge = value
+                case "住院号":   editSerial = value
+                case "采血时间": editTime = value
+                case "科室":     editDept = value
+                case "床号":     editBed = value
+                default: break
+                }
+            }
+        } catch {
+            aiEditError = error.localizedDescription
+        }
+        isAIExtracting = false
+    }
+
     // MARK: - Delete
 
     private func confirmDelete(_ record: Record) {
@@ -407,6 +439,30 @@ struct HistoryView: View {
                     editRow("床号:", $editBed)
                 }
                 .padding(20)
+            }
+
+            // AI re-extraction from captured image
+            if state.hasQwenAPIKey, let record = selectedRecord,
+               state.ocr.imageExistsInCaptures(bulletNumber: record.bulletNumber) {
+                VStack(spacing: 6) {
+                    if isAIExtracting {
+                        HStack(spacing: 6) {
+                            ProgressView().scaleEffect(0.7)
+                            Text("AI 识别中...").font(.system(size: 12)).foregroundStyle(.secondary)
+                        }
+                    } else if let err = aiEditError {
+                        Text(err).font(.system(size: 11)).foregroundStyle(.red)
+                    }
+                    Button(action: { Task { await runAIExtraction() } }) {
+                        Label("AI 识别（从截图）", systemImage: "sparkles")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isAIExtracting)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 8)
             }
 
             Divider()
