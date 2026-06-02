@@ -177,22 +177,13 @@ class DatabaseManager {
     }
 
     func deleteRecord(bullet: String) -> Bool {
-        guard let db = db, !bullet.isEmpty else {
-            print("[DB] deleteRecord skipped: empty bullet")
-            return false
-        }
+        guard let db = db, !bullet.isEmpty else { return false }
         let sql = "DELETE FROM records WHERE 子弹头编号 = ?;"
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            print("[DB] deleteRecord prepare failed: \(String(cString: sqlite3_errmsg(db)))")
-            return false
-        }
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
         defer { sqlite3_finalize(stmt) }
         sqlite3_bind_text(stmt, 1, (bullet as NSString).utf8String, -1, nil)
-        let result = sqlite3_step(stmt)
-        let changes = sqlite3_changes(db)
-        print("[DB] deleteRecord bullet=\(bullet) result=\(result) changes=\(changes)")
-        return result == SQLITE_DONE
+        return sqlite3_step(stmt) == SQLITE_DONE
     }
 
     func exportCSV(to path: String, minBullet: Int?, firstBox: Int, firstHole: Int) -> Bool {
