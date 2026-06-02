@@ -350,8 +350,8 @@ struct HistoryView: View {
         guard !bullet.isEmpty else { return }
         // If bullet number changed, delete the old record first to avoid duplicates
         guard let record = editingRecord else { return }
-        if let oldBullet = editingRecord?.bulletNumber, oldBullet != bullet {
-            _ = state.db.deleteRecord(bullet: oldBullet)
+        if record.bulletNumber != bullet {
+            _ = state.db.deleteRecord(bullet: record.bulletNumber)
         }
         _ = state.db.upsert(
             name: name, gender: editGender, age: editAge,
