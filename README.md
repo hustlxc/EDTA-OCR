@@ -14,6 +14,7 @@
 - 重复检测基于子弹头编号，支持覆盖更新
 - 用户核对编辑后存入 SQLite3 数据库
 - 历史记录查询、编辑、删除、CSV 导出
+- 编辑记录时可对已有截图重新 AI 识别
 - 全键盘操作（Enter 贯穿首页→拍照→保存→继续）
 
 ## 技术栈
@@ -57,10 +58,10 @@ export QWEN_API_KEY=sk-your-key-here
 | 模型 | 说明 |
 |------|------|
 | `qwen-vl-ocr` | 专为 OCR 优化 |
-| `qwen3-vl-flash` | 快速（默认） |
-| `qwen3-vl-plus` | 均衡 |
-| `qwen3.6-flash` | 最新·快 |
+| `qwen3.6-flash` | 最新·快（默认） |
 | `qwen3.6-plus` | 最新·强 |
+| `qwen3-vl-flash` | 快速 |
+| `qwen3-vl-plus` | 均衡 |
 
 ### 工作流程（AI 模式下）
 
