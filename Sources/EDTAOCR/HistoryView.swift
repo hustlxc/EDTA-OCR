@@ -7,8 +7,7 @@ struct HistoryView: View {
     @State private var records: [Record] = []
     @State private var searchText = ""
     @State private var selectedRecordID: Record.ID?
-    @State private var selectedRecord: Record?
-    @State private var showEditSheet = false
+    @State private var editingRecord: Record?
     @State private var showDeleteConfirm = false
     @State private var pendingDeleteBullet = ""
     @State private var isAIExtracting = false
@@ -153,7 +152,7 @@ struct HistoryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { refreshRecords() }
         .onChange(of: searchText) { _, _ in refreshRecords() }
-        .sheet(isPresented: $showEditSheet) { editSheet }
+        .sheet(item: $editingRecord) { record in editSheet(for: record) }
         .alert("确认删除", isPresented: $showDeleteConfirm) {
             Button("取消", role: .cancel) {}
             Button("删除", role: .destructive) {
@@ -338,16 +337,7 @@ struct HistoryView: View {
     // MARK: - Edit
 
     private func openEdit(_ record: Record) {
-        selectedRecord = record
-        editName = record.name
-        editGender = (record.gender == "女") ? "女" : "男"
-        editAge = record.age
-        editSerial = record.serialNumber
-        editBullet = record.bulletNumber
-        editTime = record.collectionTime
-        editDept = record.department
-        editBed = record.bedNumber
-        showEditSheet = true
+        editingRecord = record
     }
 
     private func saveEdit() {
@@ -359,7 +349,8 @@ struct HistoryView: View {
         let bullet = editBullet.trimmingCharacters(in: .whitespaces)
         guard !bullet.isEmpty else { return }
         // If bullet number changed, delete the old record first to avoid duplicates
-        if let oldBullet = selectedRecord?.bulletNumber, oldBullet != bullet {
+        guard let record = editingRecord else { return }
+        if let oldBullet = editingRecord?.bulletNumber, oldBullet != bullet {
             _ = state.db.deleteRecord(bullet: oldBullet)
         }
         _ = state.db.upsert(
@@ -368,15 +359,15 @@ struct HistoryView: View {
             bulletNumber: bullet,
             collectionTime: editTime, department: editDept,
             bedNumber: editBed,
-            rawOCRText: selectedRecord?.rawOCRText ?? ""
+            rawOCRText: record.rawOCRText
         )
         refreshRecords()
         selectedRecordID = records.first(where: { $0.bulletNumber == bullet })?.id
-        showEditSheet = false
+        editingRecord = nil
     }
 
     private func runAIExtraction() async {
-        guard let record = selectedRecord else { return }
+        guard let record = editingRecord else { return }
         guard let imagePath = state.ocr.capturedImagePath(bulletNumber: record.bulletNumber) else {
             aiEditError = "未找到截图文件"
             return
@@ -417,7 +408,7 @@ struct HistoryView: View {
 
     // MARK: - Edit Sheet
 
-    private var editSheet: some View {
+    private func editSheet(for record: Record) -> some View {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
@@ -445,7 +436,7 @@ struct HistoryView: View {
             }
 
             // AI re-extraction from captured image
-            if state.hasQwenAPIKey {
+            if state.hasQwenAPIKey && state.ocr.imageExistsInCaptures(bulletNumber: record.bulletNumber) {
                 VStack(spacing: 6) {
                     if isAIExtracting {
                         HStack(spacing: 6) {
@@ -471,7 +462,7 @@ struct HistoryView: View {
 
             HStack {
                 Button("取消") {
-                    showEditSheet = false
+                    editingRecord = nil
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
