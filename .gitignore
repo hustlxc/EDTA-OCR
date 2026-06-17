@@ -16,3 +16,6 @@ captures.txt
 db.txt
 merge.sh
 paths.txt
+merged_embedded.db
+*.log
+__pycache__/

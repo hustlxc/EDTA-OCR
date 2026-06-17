@@ -48,6 +48,8 @@ def main():
                         help="File with one 'db_path captures_dir' pair per line, or --db/--captures")
     parser.add_argument("--force", action="store_true",
                         help="Actually perform the merge (without this, only report conflicts)")
+    parser.add_argument("--keep-duplicates", action="store_true",
+                        help="Keep all records even when bullet numbers conflict (drops UNIQUE constraint)")
     parser.add_argument("--out", default="merged.db", help="Output merged database")
     parser.add_argument("--out-captures", default="merged_captures",
                         help="Output captures directory")
@@ -109,11 +111,17 @@ def main():
 
     total_singletons = sum(1 for b in singletons if b)
     total_conflicts = len(conflicts)
-    print(f"\nSummary: {total_singletons} unique records, {total_conflicts} conflicts")
+    conflict_records = sum(len(v) for v in conflicts.values())
+    print(f"\nSummary: {total_singletons} unique records, {total_conflicts} conflicting bullets ({conflict_records} total records involved)")
 
     if not args.force:
         if conflicts:
-            print("\nRun with --force to merge (last --db wins on conflict, images overwritten).")
+            dup_flag = " --keep-duplicates" if args.keep_duplicates else ""
+            if args.keep_duplicates:
+                print("\nRun with --force --keep-duplicates to merge (all records kept, duplicates allowed).")
+            else:
+                print("\nRun with --force to merge (last --db wins on conflict).")
+            print("         --keep-duplicates to keep all conflicting records instead.")
         else:
             print("\nNo conflicts. Run with --force to proceed with merge.")
         return
@@ -125,11 +133,12 @@ def main():
 
     out_db = sqlite3.connect(args.out)
     out_db.execute("DROP TABLE IF EXISTS records")
-    out_db.execute("""
+    unique_clause = "" if args.keep_duplicates else "UNIQUE"
+    out_db.execute(f"""
         CREATE TABLE records (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             姓名 TEXT, 性别 TEXT, 年龄 TEXT, 住院号 TEXT,
-            子弹头编号 TEXT UNIQUE, 采血时间 TEXT,
+            子弹头编号 TEXT {unique_clause}, 采血时间 TEXT,
             科室 TEXT, 床号 TEXT, 原始OCR文本 TEXT,
             录入时间 TEXT DEFAULT (datetime('now','localtime'))
         )
@@ -146,16 +155,28 @@ def main():
         )
         merged += 1
 
-    # Insert conflicts: last --db wins
-    for b, entries in conflicts.items():
-        _, winner = entries[-1]  # last entry wins
-        out_db.execute("DELETE FROM records WHERE 子弹头编号 = ?", (b,))
-        out_db.execute(
-            "INSERT INTO records (姓名,性别,年龄,住院号,子弹头编号,采血时间,科室,床号,原始OCR文本,录入时间) VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (winner["name"], winner["gender"], winner["age"], winner["serial"], b,
-             winner["time"], winner["dept"], winner["bed"], winner["ocr"], winner["saved"])
-        )
-        merged += 1
+    # Insert conflicts
+    if args.keep_duplicates:
+        # Keep all records — insert every entry for each conflicting bullet
+        for b, entries in conflicts.items():
+            for _db_path, rec in entries:
+                out_db.execute(
+                    "INSERT INTO records (姓名,性别,年龄,住院号,子弹头编号,采血时间,科室,床号,原始OCR文本,录入时间) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (rec["name"], rec["gender"], rec["age"], rec["serial"], b,
+                     rec["time"], rec["dept"], rec["bed"], rec["ocr"], rec["saved"])
+                )
+                merged += 1
+    else:
+        # Last --db wins (default)
+        for b, entries in conflicts.items():
+            _, winner = entries[-1]  # last entry wins
+            out_db.execute("DELETE FROM records WHERE 子弹头编号 = ?", (b,))
+            out_db.execute(
+                "INSERT INTO records (姓名,性别,年龄,住院号,子弹头编号,采血时间,科室,床号,原始OCR文本,录入时间) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (winner["name"], winner["gender"], winner["age"], winner["serial"], b,
+                 winner["time"], winner["dept"], winner["bed"], winner["ocr"], winner["saved"])
+            )
+            merged += 1
 
     out_db.commit()
     out_db.close()

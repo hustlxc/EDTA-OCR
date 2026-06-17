@@ -40,6 +40,9 @@
   table { width: 100%; border-collapse: collapse; font-size: .88rem; }
   th, td { padding: 10px 12px; text-align: left; white-space: nowrap; }
   th { background: #f7fafc; font-weight: 600; color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; position: sticky; top: 0; border-bottom: 2px solid var(--border); }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--accent); background: #ebf4fb; }
+  th .sort-arrow { margin-left: 3px; font-size: .7rem; }
   td { border-bottom: 1px solid var(--border); }
   tr:hover td { background: #edf2f7; cursor: pointer; }
   .img-indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-right: 4px; }
@@ -99,27 +102,24 @@
     <select id="dept-filter">
       <option value="">全部科室</option>
     </select>
+    <span style="font-size:.8rem;color:var(--muted);white-space:nowrap;">
+      首管
+      <input type="text" id="start-bullet" placeholder="最小" style="width:72px;padding:4px 6px;">
+      →盒
+      <input type="number" id="first-box" value="1" min="1" style="width:52px;padding:4px 6px;">
+      孔
+      <input type="number" id="first-hole" value="1" min="1" max="81" style="width:48px;padding:4px 6px;">
+    </span>
   </div>
 
   <!-- Table -->
   <div class="table-wrap">
     <table>
       <thead>
-        <tr>
-          <th>ID</th>
-          <th>姓名</th>
-          <th>性别</th>
-          <th>年龄</th>
-          <th>住院号</th>
-          <th>子弹头编号</th>
-          <th>采血时间</th>
-          <th>科室</th>
-          <th>床号</th>
-          <th>录入时间</th>
-        </tr>
+        <tr id="header-row"></tr>
       </thead>
       <tbody id="tbody">
-        <tr><td colspan="10" class="empty">加载中…</td></tr>
+        <tr><td colspan="10" class="empty" id="loading-row">加载中…</td></tr>
       </tbody>
     </table>
   </div>
@@ -143,12 +143,37 @@
 // ── State ──
 let currentPage = 1;
 let totalPages = 1;
+let sortCol = 'bullet';
+let sortOrder = 'asc';
+
+// Column definitions: key → display label
+const COLUMNS = [
+  {key: 'name',  label: '姓名'},
+  {key: 'gender',label: '性别'},
+  {key: 'age',   label: '年龄'},
+  {key: 'serial',label: '住院号'},
+  {key: 'bullet',label: '子弹头编号'},
+  {key: 'time',  label: '采血时间'},
+  {key: 'dept',  label: '科室'},
+  {key: 'bed',   label: '床号'},
+  {key: 'saved', label: '录入时间'},
+  {key: 'boxhole', label: '盒·孔'},
+];
 
 // ── Init ──
 async function init() {
-  await Promise.all([loadStats(), loadDepartments()]);
+  renderHeaders();
+  await Promise.all([loadStats(), loadBoxConfig(), loadDepartments()]);
   await loadRecords();
   bindEvents();
+}
+
+async function loadBoxConfig() {
+  const r = await fetch("/api/box-config").then(r => r.json());
+  if (r.firstBox)    document.getElementById("first-box").value = r.firstBox;
+  if (r.firstHole)   document.getElementById("first-hole").value = r.firstHole;
+  if (r.startBullet) document.getElementById("start-bullet").value = r.startBullet;
+  document.getElementById("start-bullet").placeholder = r.minBullet ? `最小: ${r.minBullet}` : '最小';
 }
 
 async function loadStats() {
@@ -171,8 +196,13 @@ async function loadDepartments() {
 async function loadRecords() {
   const q = document.getElementById("search").value.trim();
   const dept = document.getElementById("dept-filter").value;
-  const params = new URLSearchParams({ page: currentPage, q, dept });
+  const params = new URLSearchParams({ page: currentPage, q, dept, sort: sortCol, order: sortOrder });
   const data = await fetch("/api/records?" + params).then(r => r.json());
+
+  // Sync sort state back from server response
+  sortCol = data.sort || 'id';
+  sortOrder = (data.order || 'ASC').toLowerCase();
+  renderHeaders();
 
   currentPage = data.page;
   totalPages = data.total_pages;
@@ -183,14 +213,13 @@ async function loadRecords() {
 
   const tbody = document.getElementById("tbody");
   if (!data.records.length) {
-    tbody.innerHTML = '<tr><td colspan="10" class="empty">没有匹配的记录</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="${COLUMNS.length}" class="empty">没有匹配的记录</td></tr>`;
     renderPagination();
     return;
   }
 
   tbody.innerHTML = data.records.map(r => `
     <tr class="${r.has_image ? '' : 'no-img'}" data-id="${r.id}">
-      <td>${r.id}</td>
       <td><span class="img-indicator"></span>${esc(r.name)}</td>
       <td>${esc(r.gender)}</td>
       <td>${esc(r.age)}</td>
@@ -200,10 +229,19 @@ async function loadRecords() {
       <td>${esc(r.dept)}</td>
       <td>${esc(r.bed)}</td>
       <td>${esc(r.saved)}</td>
+      <td style="font-family:monospace;font-size:.82rem;color:${r.box==null?'var(--muted)':''};">${r.box != null ? `${r.box}-${r.hole}` : 'NA'}</td>
     </tr>
   `).join("");
 
   renderPagination();
+}
+
+function renderHeaders() {
+  const row = document.getElementById('header-row');
+  row.innerHTML = COLUMNS.map(c => {
+    const arrow = c.key === sortCol ? `<span class="sort-arrow">${sortOrder === 'asc' ? '▲' : '▼'}</span>` : '';
+    return `<th class="sortable" data-sort="${c.key}">${c.label}${arrow}</th>`;
+  }).join('');
 }
 
 function renderPagination() {
@@ -222,6 +260,38 @@ function bindEvents() {
     clearTimeout(timer);
     timer = setTimeout(() => { currentPage = 1; loadRecords(); }, 250);
   });
+
+  // Sort column click
+  document.getElementById("header-row").addEventListener("click", function(e) {
+    const th = e.target.closest("th.sortable");
+    if (!th) return;
+    const key = th.dataset.sort;
+    if (key === sortCol) {
+      sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortCol = key;
+      sortOrder = 'asc';
+    }
+    currentPage = 1;
+    loadRecords();
+  });
+
+  // Box config changes
+  async function onBoxConfigChange() {
+    const firstBox  = parseInt(document.getElementById("first-box").value) || 1;
+    const firstHole = parseInt(document.getElementById("first-hole").value) || 1;
+    const startBullet = document.getElementById("start-bullet").value.trim() || null;
+    await fetch("/api/box-config", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({firstBox, firstHole, startBullet}),
+    });
+    currentPage = 1;
+    loadRecords();
+  }
+  document.getElementById("first-box").addEventListener("change", onBoxConfigChange);
+  document.getElementById("first-hole").addEventListener("change", onBoxConfigChange);
+  document.getElementById("start-bullet").addEventListener("change", onBoxConfigChange);
 
   // Department filter
   document.getElementById("dept-filter").addEventListener("change", function() {
@@ -311,8 +381,9 @@ async function openDetail(id) {
       <div class="detail-item"><div class="label">科室</div><div class="value">${esc(r.dept)}</div></div>
       <div class="detail-item"><div class="label">床号</div><div class="value">${esc(r.bed)}</div></div>
       <div class="detail-item"><div class="label">录入时间</div><div class="value">${esc(r.saved)}</div></div>
+      <div class="detail-item"><div class="label">盒·孔</div><div class="value" style="${r.box==null?'color:var(--muted);':''}">${r.box != null ? `${r.box}-${r.hole}` : 'NA'}</div></div>
     </div>
-    ${r.bullet ? `<div class="detail-image"><img src="/captures/${r.bullet}.png" alt="Captured image for ${r.bullet}" onerror="this.parentElement.innerHTML='<div class=\\'empty\\'>图片不存在</div>'"></div>` : '<div class="empty">无关联图片</div>'}
+    ${r.id ? `<div class="detail-image"><img src="/captures/${r.id}.png" alt="Captured image for #${r.id}" onerror="this.parentElement.innerHTML='<div class=\\'empty\\'>图片不存在</div>'"></div>` : '<div class="empty">无关联图片</div>'}
     ${r.ocr ? `<div class="detail-ocr"><h3>原始 OCR 文本</h3><pre>${esc(r.ocr)}</pre></div>` : ''}
   `;
 }
