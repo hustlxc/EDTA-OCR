@@ -3,13 +3,38 @@
 
 import sqlite3
 import os
-from flask import Flask, g, jsonify, request, render_template, send_file
+import functools
+import secrets
+from flask import Flask, g, jsonify, request, render_template, send_file, session, redirect, url_for
 
 DB_PATH = "merged_db-2026-06-17.db"
 CAPTURES_DIR = "merged_captures-2026-06-17"
 PER_PAGE = 40
 
+# ── Authentication ─────────────────────────────────────────────────────────
+# Set via environment variables, or use these defaults:
+#   export WEB_USER=admin
+#   export WEB_PASS=your-password-here
+VALID_USER = os.environ.get("WEB_USER", "admin")
+VALID_PASS = os.environ.get("WEB_PASS", "edta2026")
+
 app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", secrets.token_hex(32))
+
+
+def login_required(f):
+    """Decorator: redirect to /login if not authenticated."""
+
+    @functools.wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("logged_in"):
+            return redirect(url_for("login", next=request.path))
+        return f(*args, **kwargs)
+
+    return decorated
+
+
+# ── Database ────────────────────────────────────────────────────────────────
 
 
 def get_db():
@@ -26,15 +51,42 @@ def close_db(_exception=None):
         db.close()
 
 
-# ── Routes ────────────────────────────────────────────────────────────────
+# ── Auth routes ─────────────────────────────────────────────────────────────
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        if (
+            request.form.get("username") == VALID_USER
+            and request.form.get("password") == VALID_PASS
+        ):
+            session["logged_in"] = True
+            session.permanent = True
+            next_url = request.args.get("next", "/")
+            return redirect(next_url)
+        error = "用户名或密码错误"
+    return render_template("login.html", error=error)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+# ── App routes ──────────────────────────────────────────────────────────────
 
 
 @app.route("/")
+@login_required
 def index():
     return render_template("index.html")
 
 
 @app.route("/api/departments")
+@login_required
 def api_departments():
     db = get_db()
     rows = db.execute(
@@ -44,6 +96,7 @@ def api_departments():
 
 
 @app.route("/api/stats")
+@login_required
 def api_stats():
     db = get_db()
     total = db.execute("SELECT COUNT(*) FROM records").fetchone()[0]
@@ -54,6 +107,7 @@ def api_stats():
 
 
 @app.route("/api/records")
+@login_required
 def api_records():
     db = get_db()
 
@@ -125,6 +179,7 @@ def api_records():
 
 
 @app.route("/api/record/<int:record_id>")
+@login_required
 def api_record(record_id):
     db = get_db()
     r = db.execute("SELECT * FROM records WHERE id = ?", (record_id,)).fetchone()
@@ -149,6 +204,7 @@ def api_record(record_id):
 
 
 @app.route("/captures/<filename>")
+@login_required
 def serve_image(filename):
     # sanitize: only allow .png files with numeric names
     if not filename.endswith(".png"):
@@ -163,5 +219,9 @@ if __name__ == "__main__":
     os.makedirs("templates", exist_ok=True)
     print(f"Database: {DB_PATH} ({os.path.getsize(DB_PATH)/1024/1024:.1f} MB)")
     print(f"Captures: {CAPTURES_DIR}/")
-    print("\nStarting server at http://localhost:5000")
-    app.run(host="0.0.0.0", port=8087, debug=True)
+    print()
+    print(f"  Username: {VALID_USER}")
+    print(f"  Password: {VALID_PASS}")
+    print(f"  (set WEB_USER / WEB_PASS env vars to change)")
+    print(f"\nStarting server at http://localhost:5000")
+    app.run(host="0.0.0.0", port=5000, debug=True)
