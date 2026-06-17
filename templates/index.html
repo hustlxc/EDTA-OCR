@@ -89,7 +89,7 @@
     <h1>🩸 EDTA-OCR 数据库查看器</h1>
     <div class="stats">
       <span id="stat-total">总记录: …</span>
-      <span id="stat-bullet">有编号: …</span>
+      <span id="stat-bullet">有图片: …</span>
       <a href="/logout" style="color:var(--muted);text-decoration:none;margin-left:4px;" title="退出登录">⏻</a>
     </div>
   </div>
@@ -104,12 +104,13 @@
     </select>
     <span style="font-size:.8rem;color:var(--muted);white-space:nowrap;">
       首管
-      <input type="text" id="start-bullet" placeholder="最小" style="width:72px;padding:4px 6px;">
+      <input type="text" id="start-bullet" value="2801" placeholder="最小" style="width:72px;padding:4px 6px;">
       →盒
-      <input type="number" id="first-box" value="1" min="1" style="width:52px;padding:4px 6px;">
+      <input type="number" id="first-box" value="34" min="1" style="width:52px;padding:4px 6px;">
       孔
-      <input type="number" id="first-hole" value="1" min="1" max="81" style="width:48px;padding:4px 6px;">
+      <input type="number" id="first-hole" value="29" min="1" max="81" style="width:48px;padding:4px 6px;">
     </span>
+    <button id="export-btn" style="padding:8px 16px;background:var(--green);color:#fff;border:none;border-radius:var(--radius);cursor:pointer;font-size:.85rem;font-weight:600;white-space:nowrap;">📥 导出 Excel</button>
   </div>
 
   <!-- Table -->
@@ -292,6 +293,14 @@ function bindEvents() {
   document.getElementById("first-box").addEventListener("change", onBoxConfigChange);
   document.getElementById("first-hole").addEventListener("change", onBoxConfigChange);
   document.getElementById("start-bullet").addEventListener("change", onBoxConfigChange);
+
+  // Export button
+  document.getElementById("export-btn").addEventListener("click", function() {
+    const q = document.getElementById("search").value.trim();
+    const dept = document.getElementById("dept-filter").value;
+    const params = new URLSearchParams({ q, dept, sort: sortCol, order: sortOrder });
+    window.open("/api/export?" + params, "_blank");
+  });
 
   // Department filter
   document.getElementById("dept-filter").addEventListener("change", function() {

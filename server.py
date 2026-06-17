@@ -2,10 +2,13 @@
 """Web viewer for EDTA-OCR merged database and captures."""
 
 import sqlite3
+import io
 import os
 import functools
 import secrets
-from flask import Flask, g, jsonify, request, render_template, session, redirect, url_for, Response
+from flask import Flask, g, jsonify, request, render_template, session, redirect, url_for, Response, send_file
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
 DB_PATH = "merged_embedded.db"
 PER_PAGE = 40
@@ -22,15 +25,15 @@ PER_PAGE = 40
 #
 # Bullets with rank < startRank get box/hole = null (displayed as "NA").
 #
-# Set via env vars:  export FIRST_BOX=1  FIRST_HOLE=1  START_BULLET=1001
-FIRST_BOX  = int(os.environ.get("FIRST_BOX",  "1"))
-FIRST_HOLE = int(os.environ.get("FIRST_HOLE", "1"))
+# Set via env vars:  export FIRST_BOX=34  FIRST_HOLE=29  START_BULLET=2801
+FIRST_BOX  = int(os.environ.get("FIRST_BOX",  "34"))
+FIRST_HOLE = int(os.environ.get("FIRST_HOLE", "29"))
 HOLES_PER_BOX = 81
 
 # Runtime mutable box config (can be changed via API)
 # startBullet: the bullet number at which box-hole calculation starts.
 # Bullets with a smaller rank get box/hole = null (shown as "NA").
-_box_config = {"firstBox": FIRST_BOX, "firstHole": FIRST_HOLE, "startBullet": None}
+_box_config = {"firstBox": FIRST_BOX, "firstHole": FIRST_HOLE, "startBullet": "2801"}
 
 # Cached record-id → sequential rank mapping (1-based).
 # Each record gets a unique rank even when bullet numbers are duplicated.
@@ -341,6 +344,118 @@ def api_records():
             "sort": sort,
             "order": order,
         }
+    )
+
+
+@app.route("/api/export")
+@login_required
+def api_export():
+    """Export current view to Excel (.xlsx).  Respects search/department filter."""
+    db = get_db()
+
+    search = request.args.get("q", "").strip()
+    dept = request.args.get("dept", "").strip()
+    sort = request.args.get("sort", "bullet").strip()
+    order = request.args.get("order", "asc").strip().upper()
+
+    sort_col = SORT_COLUMNS.get(sort, "CAST(子弹头编号 AS INTEGER)")
+    if order not in ("ASC", "DESC"):
+        order = "ASC"
+
+    conditions = []
+    params = []
+    if search:
+        conditions.append(
+            "(姓名 LIKE ? OR 住院号 LIKE ? OR 子弹头编号 LIKE ? OR 床号 LIKE ?)"
+        )
+        like = f"%{search}%"
+        params.extend([like, like, like, like])
+    if dept:
+        conditions.append("科室 = ?")
+        params.append(dept)
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    # Fetch all matching records (no pagination) — exclude BLOB
+    rows = db.execute(
+        f"SELECT id, 姓名, 性别, 年龄, 住院号, 子弹头编号, 采血时间, 科室, 床号, 原始OCR文本, 录入时间"
+        f" FROM records {where} ORDER BY {sort_col} {order}",
+        params,
+    ).fetchall()
+
+    # Box-hole config
+    sb = _box_config.get("startBullet")
+    if not sb:
+        mb = min_bullet_number(db)
+        sb = str(mb) if mb is not None else None
+    start_rank = None
+    if sb:
+        first_id = db.execute(
+            "SELECT MIN(id) FROM records WHERE 子弹头编号 = ?", (sb,)
+        ).fetchone()
+        if first_id and first_id[0]:
+            start_rank = record_rank(db, first_id[0])
+
+    # Build workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "EDTA-OCR 记录"
+
+    # Header style
+    header_font = Font(bold=True, size=11)
+    header_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+    header_align = Alignment(horizontal="center", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin"),
+    )
+
+    headers = ["序号", "姓名", "性别", "年龄", "住院号", "子弹头编号", "采血时间", "科室", "床号", "盒·孔", "原始OCR文本", "录入时间"]
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    # Data rows
+    for i, r in enumerate(rows):
+        rank = record_rank(db, r["id"])
+        bh = box_hole_for(rank, start_rank)
+        boxhole = f"{bh['box']}-{bh['hole']}" if bh else "NA"
+        values = [
+            i + 1,
+            r["姓名"] or "", r["性别"] or "", r["年龄"] or "",
+            r["住院号"] or "", r["子弹头编号"] or "",
+            r["采血时间"] or "", r["科室"] or "", r["床号"] or "",
+            boxhole,
+            r["原始OCR文本"] or "", r["录入时间"] or "",
+        ]
+        row_num = i + 2
+        for col, v in enumerate(values, 1):
+            cell = ws.cell(row=row_num, column=col, value=v)
+            cell.border = thin_border
+            if col != 1:
+                cell.alignment = Alignment(horizontal="center" if col <= 10 else "left")
+
+    # Column widths
+    widths = [6, 10, 6, 6, 12, 14, 16, 26, 10, 10, 40, 20]
+    for col, w in enumerate(widths, 1):
+        ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = w
+
+    # Freeze header row
+    ws.freeze_panes = "A2"
+
+    # Write to memory and return
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = "edta_ocr_export.xlsx"
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename,
     )
 
 

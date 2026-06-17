@@ -38,6 +38,8 @@ def main():
 
     # Build image lookup: bullet number → PNG binary
     # Also walk subdirectories (some captures have date-named subfolders).
+    # _latest.png is skipped — it's a transient app file with no guaranteed
+    # mapping to any specific bullet number.
     images = {}  # bullet_str → bytes
     for dirpath, _dirnames, filenames in os.walk(args.captures):
         for fname in filenames:
