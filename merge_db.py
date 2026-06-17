@@ -166,18 +166,62 @@ def main():
     for db_path, cap_dir, _ in all_sources:
         if not os.path.isdir(cap_dir):
             continue
-        for fname in os.listdir(cap_dir):
-            if not fname.endswith(".png"):
-                continue
-            src = os.path.join(cap_dir, fname)
-            dst = os.path.join(args.out_captures, fname)
-            if os.path.exists(dst):
-                img_skipped += 1
-                if args.force:
+        for dirpath, _dirnames, filenames in os.walk(cap_dir):
+            for fname in filenames:
+                if not fname.endswith(".png"):
+                    continue
+                # Skip _latest.png — it is a transient app file, not tied to
+                # any bullet number, and would overwrite the previous source's
+                # _latest.png (which may be the only surviving image for a
+                # record whose numbered PNG was never saved).
+                if fname == "_latest.png":
+                    continue
+                src = os.path.join(dirpath, fname)
+                dst = os.path.join(args.out_captures, fname)
+                if os.path.exists(dst):
+                    img_skipped += 1
+                    if args.force:
+                        shutil.copy2(src, dst)
+                else:
                     shutil.copy2(src, dst)
-            else:
-                shutil.copy2(src, dst)
-                img_count += 1
+                    img_count += 1
+
+    # Recovery: for records whose bullet image is still missing, check if the
+    # source's _latest.png is the only surviving image.  The macOS app always
+    # saves a numbered PNG *and* _latest.png, but if the app crashed mid-save
+    # the numbered file may never have been written.
+    recovered = 0
+    for b in singletons:
+        dst_path = os.path.join(args.out_captures, f"{b}.png")
+        if os.path.exists(dst_path):
+            continue
+        _db_path, rec = singletons[b]
+        src_cap = rec.get("source_cap", "")
+        if not src_cap:
+            continue
+        for dirpath, _dirnames, filenames in os.walk(src_cap):
+            if "_latest.png" in filenames:
+                src = os.path.join(dirpath, "_latest.png")
+                shutil.copy2(src, dst_path)
+                recovered += 1
+                break
+    for b in conflicts:
+        dst_path = os.path.join(args.out_captures, f"{b}.png")
+        if os.path.exists(dst_path):
+            continue
+        _, winner = conflicts[b][-1]
+        src_cap = winner.get("source_cap", "")
+        if not src_cap:
+            continue
+        for dirpath, _dirnames, filenames in os.walk(src_cap):
+            if "_latest.png" in filenames:
+                src = os.path.join(dirpath, "_latest.png")
+                shutil.copy2(src, dst_path)
+                recovered += 1
+                break
+
+    if recovered:
+        print(f"  {recovered} images recovered from _latest.png fallback")
 
     print(f"  {merged} records written to {args.out}")
     print(f"  {img_count} images copied, {img_skipped} overwritten in {args.out_captures}/")

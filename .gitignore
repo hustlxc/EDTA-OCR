@@ -9,3 +9,10 @@ capture_tool
 *.bk
 rename.py
 PP-OCRv5_server_det/
+merged_db-*.db
+merged_captures-*/
+missing_images.txt
+captures.txt
+db.txt
+merge.sh
+paths.txt
