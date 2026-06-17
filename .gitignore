@@ -8,3 +8,4 @@ capture_tool
 *.csv
 *.bk
 rename.py
+PP-OCRv5_server_det/
