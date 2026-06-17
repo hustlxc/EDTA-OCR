@@ -15,7 +15,7 @@ Usage:
 Without --force, conflicts are reported but nothing is written.
 """
 
-import argparse, sqlite3, os, shutil, sys, fnmatch
+import argparse, sqlite3, os, shutil, sys
 from collections import OrderedDict
 
 def load_db(db_path, cap_dir):
