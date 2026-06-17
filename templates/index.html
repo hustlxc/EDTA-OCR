@@ -180,7 +180,7 @@ async function loadBoxConfig() {
 async function loadStats() {
   const r = await fetch("/api/stats").then(r => r.json());
   document.getElementById("stat-total").textContent = `总记录: ${r.total.toLocaleString()}`;
-  document.getElementById("stat-bullet").textContent = `有编号: ${r.with_bullet.toLocaleString()}`;
+  document.getElementById("stat-bullet").textContent = `有图片: ${r.with_bullet.toLocaleString()}`;
 }
 
 async function loadDepartments() {
