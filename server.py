@@ -273,8 +273,8 @@ def api_records():
 
     search = request.args.get("q", "").strip()
     dept = request.args.get("dept", "").strip()
-    sort = request.args.get("sort", "id").strip()
-    order = request.args.get("order", "asc").strip().upper()
+    sort = request.args.get("sort", "bullet").strip()
+    order = request.args.get("order", "desc").strip().upper()
     page = max(1, int(request.args.get("page", 1)))
 
     # Whitelist sort column; default to id
@@ -374,11 +374,11 @@ def api_export():
     search = request.args.get("q", "").strip()
     dept = request.args.get("dept", "").strip()
     sort = request.args.get("sort", "bullet").strip()
-    order = request.args.get("order", "asc").strip().upper()
+    order = request.args.get("order", "desc").strip().upper()
 
     sort_col = SORT_COLUMNS.get(sort, "CAST(子弹头编号 AS INTEGER)")
     if order not in ("ASC", "DESC"):
-        order = "ASC"
+        order = "DESC"
 
     conditions = []
     params = []
