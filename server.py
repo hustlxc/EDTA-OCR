@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Web viewer for EDTA-OCR merged database and captures."""
 
+import base64
 import sqlite3
 import io
 import os
@@ -120,13 +121,28 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", secrets.token_hex(32))
 
 
 def login_required(f):
-    """Decorator: redirect to /login if not authenticated."""
+    """Decorator: supports session cookie AND HTTP Basic Auth.
+    Redirects to /login only if neither is valid."""
 
     @functools.wraps(f)
     def decorated(*args, **kwargs):
-        if not session.get("logged_in"):
-            return redirect(url_for("login", next=request.path))
-        return f(*args, **kwargs)
+        # 1. Session cookie
+        if session.get("logged_in"):
+            return f(*args, **kwargs)
+        # 2. HTTP Basic Auth (for API clients)
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Basic "):
+            try:
+                creds = base64.b64decode(auth[6:]).decode("utf-8")
+                user, _, pwd = creds.partition(":")
+                if user == VALID_USER and pwd == VALID_PASS:
+                    return f(*args, **kwargs)
+            except Exception:
+                pass
+        # 3. Neither valid — redirect browser, 401 for API
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "Unauthorized"}), 401
+        return redirect(url_for("login", next=request.path))
 
     return decorated
 
