@@ -153,6 +153,9 @@
 </div>
 
 <script>
+// ── Feature flags ──
+const ALLOW_EDIT = false;   // set to true to enable edit/delete buttons
+
 // ── State ──
 let currentPage = 1;
 let totalPages = 1;
@@ -469,11 +472,12 @@ function renderDetailView(r) {
     </div>
     ${r.id ? `<div class="detail-image"><img src="/captures/${r.id}.png" alt="Captured image for #${r.id}" onerror="this.parentElement.innerHTML='<div class=\\'empty\\'>图片不存在</div>'"></div>` : '<div class="empty">无关联图片</div>'}
     ${r.ocr ? `<div class="detail-ocr"><h3>原始 OCR 文本</h3><pre>${esc(r.ocr)}</pre></div>` : ''}
+    ${ALLOW_EDIT ? `
     <div class="modal-actions">
       <button class="btn btn-del" onclick="deleteRecord(${r.id})">🗑 删除</button>
       <div style="flex:1;"></div>
       <button class="btn btn-edit" onclick="openDetail(${r.id},'edit')">✏️ 编辑</button>
-    </div>
+    </div>` : ''}
   `;
 }
 
