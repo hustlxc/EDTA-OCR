@@ -464,6 +464,21 @@ struct ReviewView: View {
                 rawOCRText: rawText, savedAt: ""
             )
             showSaveSuccess = true
+
+            // Fire-and-forget upload to server
+            let imgPath = state.ocr.capturedImagePath(bulletNumber: bullet)
+            Task.detached {
+                if let remoteID = await RemoteDB.uploadRecord(
+                    name: trimmedName, gender: trimmedGender, age: trimmedAge,
+                    serial: serial, bullet: bullet, time: time,
+                    dept: dept, bed: bed, ocr: rawText
+                ) {
+                    if let path = imgPath {
+                        let url = URL(fileURLWithPath: path)
+                        _ = await RemoteDB.uploadImage(recordID: remoteID, pngURL: url)
+                    }
+                }
+            }
         } else {
             let alert = NSAlert()
             alert.messageText = "保存失败"
