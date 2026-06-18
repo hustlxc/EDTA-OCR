@@ -159,7 +159,9 @@ struct HistoryView: View {
                 _ = state.db.deleteRecord(bullet: pendingDeleteBullet)
                 state.ocr.deleteImage(bulletNumber: pendingDeleteBullet)
                 Task { await RemoteDB.deleteRecord(bullet: pendingDeleteBullet) }
-                refreshRecords()
+                // Force refresh on the next runloop iteration so the Table
+                // pick up the updated records array.
+                DispatchQueue.main.async { refreshRecords() }
             }
         } message: {
             Text("子弹头编号 \(pendingDeleteBullet) 的记录和图片将被永久删除，不可恢复。")

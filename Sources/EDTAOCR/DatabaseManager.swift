@@ -14,6 +14,8 @@ class DatabaseManager {
             db = nil
             return
         }
+        // Enable WAL mode so writes are immediately visible to all connections
+        sqlite3_exec(db, "PRAGMA journal_mode=WAL;", nil, nil, nil)
         createTable()
     }
 
