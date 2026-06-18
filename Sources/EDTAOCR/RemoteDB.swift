@@ -75,4 +75,38 @@ enum RemoteDB {
             return false
         }
     }
+
+    /// Delete a record by bullet number.
+    static func deleteRecord(bullet: String) async -> Bool {
+        guard let url = URL(string: "\(baseURL)/api/records/by-bullet/\(bullet)") else { return false }
+        var req = URLRequest(url: url)
+        req.httpMethod = "DELETE"
+        req.setValue(authHeader, forHTTPHeaderField: "Authorization")
+        req.timeoutInterval = 10
+
+        do {
+            let (_, resp) = try await URLSession.shared.data(for: req)
+            return (resp as? HTTPURLResponse)?.statusCode == 200
+        } catch {
+            print("[RemoteDB] deleteRecord failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    /// Delete an image from a server record.
+    static func deleteImage(recordID: Int) async -> Bool {
+        guard let url = URL(string: "\(baseURL)/api/records/\(recordID)/image") else { return false }
+        var req = URLRequest(url: url)
+        req.httpMethod = "DELETE"
+        req.setValue(authHeader, forHTTPHeaderField: "Authorization")
+        req.timeoutInterval = 10
+
+        do {
+            let (_, resp) = try await URLSession.shared.data(for: req)
+            return (resp as? HTTPURLResponse)?.statusCode == 200
+        } catch {
+            print("[RemoteDB] deleteImage failed: \(error.localizedDescription)")
+            return false
+        }
+    }
 }

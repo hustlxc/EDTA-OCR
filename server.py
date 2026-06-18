@@ -604,14 +604,36 @@ def api_delete_record(record_id):
     return jsonify({"deleted": record_id})
 
 
-@app.route("/api/records/<int:record_id>/image", methods=["POST"])
+@app.route("/api/records/by-bullet/<bullet>", methods=["DELETE"])
 @login_required
-def api_upload_image(record_id):
-    """Upload / replace the image for a record."""
+def api_delete_by_bullet(bullet):
+    """Delete a record by bullet number."""
+    db = get_db()
+    r = db.execute(
+        "SELECT id FROM records WHERE 子弹头编号 = ?", (bullet,)
+    ).fetchone()
+    if not r:
+        return jsonify({"error": "Not found"}), 404
+    db.execute("DELETE FROM records WHERE 子弹头编号 = ?", (bullet,))
+    db.commit()
+    global _id_rank, _rank_cache_db
+    _id_rank = {}
+    _rank_cache_db = None
+    return jsonify({"deleted": bullet})
+
+
+@app.route("/api/records/<int:record_id>/image", methods=["POST", "DELETE"])
+@login_required
+def api_manage_image(record_id):
+    """Upload or delete the image for a record."""
     db = get_db()
     r = db.execute("SELECT id FROM records WHERE id = ?", (record_id,)).fetchone()
     if not r:
         return jsonify({"error": "Not found"}), 404
+    if request.method == "DELETE":
+        db.execute("UPDATE records SET 图片 = NULL WHERE id = ?", (record_id,))
+        db.commit()
+        return jsonify({"deleted": record_id})
     img_data = request.get_data()
     if not img_data:
         return jsonify({"error": "No image data"}), 400

@@ -158,6 +158,7 @@ struct HistoryView: View {
             Button("删除", role: .destructive) {
                 _ = state.db.deleteRecord(bullet: pendingDeleteBullet)
                 state.ocr.deleteImage(bulletNumber: pendingDeleteBullet)
+                Task { await RemoteDB.deleteRecord(bullet: pendingDeleteBullet) }
                 refreshRecords()
             }
         } message: {
@@ -350,8 +351,10 @@ struct HistoryView: View {
         guard !bullet.isEmpty else { return }
         // If bullet number changed, delete the old record first to avoid duplicates
         guard let record = editingRecord else { return }
-        if record.bulletNumber != bullet {
-            _ = state.db.deleteRecord(bullet: record.bulletNumber)
+        let oldBullet = record.bulletNumber
+        if oldBullet != bullet {
+            _ = state.db.deleteRecord(bullet: oldBullet)
+            Task { await RemoteDB.deleteRecord(bullet: oldBullet) }
         }
         _ = state.db.upsert(
             name: name, gender: editGender, age: editAge,
@@ -361,6 +364,14 @@ struct HistoryView: View {
             bedNumber: editBed,
             rawOCRText: record.rawOCRText
         )
+        // Sync to server (upsert is idempotent)
+        Task {
+            await RemoteDB.uploadRecord(
+                name: name, gender: editGender, age: editAge,
+                serial: serial, bullet: bullet, time: editTime,
+                dept: editDept, bed: editBed, ocr: record.rawOCRText
+            )
+        }
         refreshRecords()
         selectedRecordID = records.first(where: { $0.bulletNumber == bullet })?.id
         editingRecord = nil
