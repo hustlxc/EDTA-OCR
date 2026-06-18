@@ -44,14 +44,16 @@ enum RemoteDB {
     static func uploadRecord(
         name: String, gender: String, age: String,
         serial: String, bullet: String, time: String,
-        dept: String, bed: String, ocr: String
+        dept: String, bed: String, ocr: String,
+        saved: String = ""
     ) async -> Int? {
         guard let url = URL(string: "\(baseURL)/api/records") else { return nil }
-        let body: [String: String] = [
+        var body: [String: String] = [
             "name": name, "gender": gender, "age": age,
             "serial": serial, "bullet": bullet, "time": time,
             "dept": dept, "bed": bed, "ocr": ocr,
         ]
+        if !saved.isEmpty { body["saved"] = saved }
         return await postJSON(url, body)
     }
 

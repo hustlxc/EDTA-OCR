@@ -14,6 +14,12 @@ struct ReviewView: View {
     @State private var didLoadFields = false
 
     private let fieldOrder = ["姓名", "性别", "年龄", "住院号", "子弹头编号", "采血时间", "科室", "床号"]
+    private let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
     private let requiredFields = ["姓名", "住院号", "子弹头编号"]
     private var recognizedFieldCount: Int {
         fieldOrder.filter {
@@ -467,11 +473,12 @@ struct ReviewView: View {
 
             // Fire-and-forget upload to server
             let imgPath = state.ocr.capturedImagePath(bulletNumber: bullet)
+            let saved = dateFormatter.string(from: Date())
             Task.detached {
                 if let remoteID = await RemoteDB.uploadRecord(
                     name: trimmedName, gender: trimmedGender, age: trimmedAge,
                     serial: serial, bullet: bullet, time: time,
-                    dept: dept, bed: bed, ocr: rawText
+                    dept: dept, bed: bed, ocr: rawText, saved: saved
                 ) {
                     if let path = imgPath {
                         let url = URL(fileURLWithPath: path)

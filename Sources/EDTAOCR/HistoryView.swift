@@ -371,7 +371,8 @@ struct HistoryView: View {
             await RemoteDB.uploadRecord(
                 name: name, gender: editGender, age: editAge,
                 serial: serial, bullet: bullet, time: editTime,
-                dept: editDept, bed: editBed, ocr: record.rawOCRText
+                dept: editDept, bed: editBed, ocr: record.rawOCRText,
+                saved: record.savedAt
             )
         }
         refreshRecords()
