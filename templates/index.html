@@ -64,6 +64,18 @@
   .modal-close { width: 32px; height: 32px; border: none; background: none; font-size: 1.4rem; cursor: pointer; color: var(--muted); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
   .modal-close:hover { background: var(--bg); }
   .modal-body { padding: 20px; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+  .btn { padding: 8px 18px; border: none; border-radius: var(--radius); font-size: .85rem; font-weight: 600; cursor: pointer; }
+  .btn-edit { background: var(--accent); color: #fff; }
+  .btn-edit:hover { background: var(--accent-hover); }
+  .btn-del { background: var(--red); color: #fff; }
+  .btn-del:hover { background: #c53030; }
+  .btn-save { background: var(--green); color: #fff; }
+  .btn-cancel { background: #a0aec0; color: #fff; }
+  .edit-field { margin-bottom: 10px; }
+  .edit-field label { display: block; font-size: .75rem; color: var(--muted); margin-bottom: 2px; font-weight: 600; }
+  .edit-field input, .edit-field textarea { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: .88rem; font-family: inherit; }
+  .edit-field textarea { resize: vertical; min-height: 60px; }
   .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
   .detail-item { }
   .detail-item .label { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
@@ -368,9 +380,13 @@ function bindEvents() {
 }
 
 // ── Detail Modal ──
-async function openDetail(id) {
+// ── Detail Modal (view / edit / delete) ──
+
+async function openDetail(id, mode) {
+  mode = mode || 'view';
   const overlay = document.getElementById("modal-overlay");
   overlay.dataset.recordId = id;
+  overlay.dataset.mode = mode;
   document.getElementById("modal-title").textContent = `记录 #${id}`;
   document.getElementById("modal-body").innerHTML = '<div class="empty">加载中…</div>';
   overlay.classList.add("open");
@@ -378,6 +394,65 @@ async function openDetail(id) {
   const r = await fetch(`/api/record/${id}`).then(r => r.json());
   if (r.error) { document.getElementById("modal-body").innerHTML = `<div class="empty">${r.error}</div>`; return; }
 
+  if (mode === 'edit') {
+    renderEditForm(r);
+  } else {
+    renderDetailView(r);
+  }
+}
+
+function field(id, label, value) {
+  return `<div class="edit-field"><label for="${id}">${label}</label><input id="${id}" value="${esc(value)}"></div>`;
+}
+
+function renderEditForm(r) {
+  document.getElementById("modal-title").textContent = `✏️ 编辑 #${r.id} — ${r.name}`;
+  document.getElementById("modal-body").innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;">
+      ${field('edit-name', '姓名', r.name)}
+      ${field('edit-gender', '性别', r.gender)}
+      ${field('edit-age', '年龄', r.age)}
+      ${field('edit-serial', '住院号', r.serial)}
+      ${field('edit-bullet', '子弹头编号', r.bullet)}
+      ${field('edit-time', '采血时间', r.time)}
+      ${field('edit-dept', '科室', r.dept)}
+      ${field('edit-bed', '床号', r.bed)}
+    </div>
+    <div class="edit-field" style="margin-top:8px;"><label for="edit-ocr">原始OCR文本</label><textarea id="edit-ocr">${esc(r.ocr)}</textarea></div>
+    <div style="font-size:.8rem;color:var(--muted);margin-top:8px;">
+      盒·孔: ${r.box != null ? `${r.box}-${r.hole}` : 'NA'} &nbsp;|&nbsp; 录入时间: ${esc(r.saved)}
+      ${r.has_image ? ' &nbsp;|&nbsp; 📷 有图片' : ''}
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" onclick="openDetail(${r.id},'view')">取消</button>
+      <button class="btn btn-save" onclick="saveEdit(${r.id})">保存</button>
+    </div>
+  `;
+}
+
+async function saveEdit(id) {
+  const data = {
+    name: document.getElementById('edit-name').value.trim(),
+    gender: document.getElementById('edit-gender').value.trim(),
+    age: document.getElementById('edit-age').value.trim(),
+    serial: document.getElementById('edit-serial').value.trim(),
+    bullet: document.getElementById('edit-bullet').value.trim(),
+    time: document.getElementById('edit-time').value.trim(),
+    dept: document.getElementById('edit-dept').value.trim(),
+    bed: document.getElementById('edit-bed').value.trim(),
+    ocr: document.getElementById('edit-ocr').value.trim(),
+  };
+  const resp = await fetch(`/api/records/${id}`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(data),
+  });
+  if (!resp.ok) { alert('保存失败'); return; }
+  openDetail(id, 'view');
+  loadRecords();
+}
+
+function renderDetailView(r) {
   document.getElementById("modal-title").textContent = `记录 #${r.id} — ${r.name}`;
   document.getElementById("modal-body").innerHTML = `
     <div class="detail-grid">
@@ -394,11 +469,23 @@ async function openDetail(id) {
     </div>
     ${r.id ? `<div class="detail-image"><img src="/captures/${r.id}.png" alt="Captured image for #${r.id}" onerror="this.parentElement.innerHTML='<div class=\\'empty\\'>图片不存在</div>'"></div>` : '<div class="empty">无关联图片</div>'}
     ${r.ocr ? `<div class="detail-ocr"><h3>原始 OCR 文本</h3><pre>${esc(r.ocr)}</pre></div>` : ''}
+    <div class="modal-actions">
+      <button class="btn btn-del" onclick="deleteRecord(${r.id})">🗑 删除</button>
+      <div style="flex:1;"></div>
+      <button class="btn btn-edit" onclick="openDetail(${r.id},'edit')">✏️ 编辑</button>
+    </div>
   `;
 }
 
+async function deleteRecord(id) {
+  if (!confirm(`确定要删除记录 #${id} 吗？此操作不可撤销。`)) return;
+  const resp = await fetch(`/api/records/${id}`, { method: 'DELETE' });
+  if (!resp.ok) { alert('删除失败'); return; }
+  closeModal();
+  loadRecords();
+}
+
 function navigateRecord(currentId, direction) {
-  // Fetch neighbor record IDs from current page
   const rows = [...document.querySelectorAll("#tbody tr[data-id]")];
   const ids = rows.map(r => parseInt(r.dataset.id));
   const idx = ids.indexOf(currentId);

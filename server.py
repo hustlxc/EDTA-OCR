@@ -138,6 +138,8 @@ def get_db():
     if "db" not in g:
         g.db = sqlite3.connect(DB_PATH)
         g.db.row_factory = sqlite3.Row
+        g.db.execute("PRAGMA journal_mode=WAL")
+        g.db.execute("PRAGMA busy_timeout=5000")
     return g.db
 
 
@@ -479,6 +481,7 @@ def api_record(record_id):
         if first_id and first_id[0]:
             start_rank = record_rank(db, first_id[0])
     bh = box_hole_for(record_rank(db, r["id"]), start_rank)
+    has_img = bool(r["图片"]) if "图片" in r.keys() else False
     return jsonify(
         {
             "id": r["id"],
@@ -494,8 +497,111 @@ def api_record(record_id):
             "saved": r["录入时间"] or "",
             "box": bh["box"] if bh else None,
             "hole": bh["hole"] if bh else None,
+            "has_image": has_img,
         }
     )
+
+
+@app.route("/api/records", methods=["POST"])
+@login_required
+def api_create_record():
+    """Insert or replace a record.  'bullet' is the unique key (upsert)."""
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Invalid JSON"}), 400
+    bullet = (data.get("bullet") or "").strip()
+    if not bullet:
+        return jsonify({"error": "子弹头编号 is required"}), 400
+
+    db = get_db()
+    db.execute(
+        "INSERT OR REPLACE INTO records (姓名, 性别, 年龄, 住院号, 子弹头编号, 采血时间, 科室, 床号, 原始OCR文本, 录入时间, 图片) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,"
+        " COALESCE((SELECT 图片 FROM records WHERE 子弹头编号 = ?), NULL))",
+        (
+            data.get("name", "").strip() or None,
+            data.get("gender", "").strip() or None,
+            data.get("age", "").strip() or None,
+            data.get("serial", "").strip() or None,
+            bullet,
+            data.get("time", "").strip() or None,
+            data.get("dept", "").strip() or None,
+            data.get("bed", "").strip() or None,
+            data.get("ocr", "").strip() or None,
+            data.get("saved") or None,
+            bullet,
+        ),
+    )
+    db.commit()
+    # Invalidate rank cache so box-hole recalculates
+    global _id_rank, _rank_cache_db
+    _id_rank = {}
+    _rank_cache_db = None
+
+    # Return the new record
+    r = db.execute("SELECT * FROM records WHERE 子弹头编号 = ?", (bullet,)).fetchone()
+    return jsonify({"id": r["id"], "bullet": bullet, "name": r["姓名"] or ""}), 201
+
+
+@app.route("/api/records/<int:record_id>", methods=["PUT"])
+@login_required
+def api_update_record(record_id):
+    """Update a single record's metadata fields."""
+    db = get_db()
+    r = db.execute("SELECT id FROM records WHERE id = ?", (record_id,)).fetchone()
+    if not r:
+        return jsonify({"error": "Not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    fields = {
+        "name": "姓名", "gender": "性别", "age": "年龄",
+        "serial": "住院号", "bullet": "子弹头编号",
+        "time": "采血时间", "dept": "科室", "bed": "床号",
+        "ocr": "原始OCR文本",
+    }
+    for key, col in fields.items():
+        if key in data:
+            db.execute(
+                f"UPDATE records SET {col} = ? WHERE id = ?",
+                (data[key].strip() if data[key] else None, record_id),
+            )
+    db.commit()
+    global _id_rank, _rank_cache_db
+    _id_rank = {}
+    _rank_cache_db = None
+    return jsonify({"id": record_id})
+
+
+@app.route("/api/records/<int:record_id>", methods=["DELETE"])
+@login_required
+def api_delete_record(record_id):
+    """Delete a record and its embedded image."""
+    db = get_db()
+    r = db.execute("SELECT id FROM records WHERE id = ?", (record_id,)).fetchone()
+    if not r:
+        return jsonify({"error": "Not found"}), 404
+    db.execute("DELETE FROM records WHERE id = ?", (record_id,))
+    db.commit()
+    global _id_rank, _rank_cache_db
+    _id_rank = {}
+    _rank_cache_db = None
+    return jsonify({"deleted": record_id})
+
+
+@app.route("/api/records/<int:record_id>/image", methods=["POST"])
+@login_required
+def api_upload_image(record_id):
+    """Upload / replace the image for a record."""
+    db = get_db()
+    r = db.execute("SELECT id FROM records WHERE id = ?", (record_id,)).fetchone()
+    if not r:
+        return jsonify({"error": "Not found"}), 404
+    img_data = request.get_data()
+    if not img_data:
+        return jsonify({"error": "No image data"}), 400
+    db.execute("UPDATE records SET 图片 = ? WHERE id = ?", (img_data, record_id))
+    db.commit()
+    return jsonify({"id": record_id, "size": len(img_data)})
 
 
 @app.route("/captures/<filename>")
