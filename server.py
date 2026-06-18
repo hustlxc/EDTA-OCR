@@ -530,10 +530,17 @@ def api_create_record():
         return jsonify({"error": "子弹头编号 is required"}), 400
 
     db = get_db()
+    # Preserve existing image (if any) when upserting without a new image
+    existing = db.execute(
+        "SELECT 图片 FROM records WHERE 子弹头编号 = ? LIMIT 1", (bullet,)
+    ).fetchone()
+    old_img = existing[0] if existing else None
+
+    # Delete all existing rows with this bullet (handles duplicates from --keep-duplicates)
+    db.execute("DELETE FROM records WHERE 子弹头编号 = ?", (bullet,))
     db.execute(
-        "INSERT OR REPLACE INTO records (姓名, 性别, 年龄, 住院号, 子弹头编号, 采血时间, 科室, 床号, 原始OCR文本, 录入时间, 图片) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,"
-        " COALESCE((SELECT 图片 FROM records WHERE 子弹头编号 = ?), NULL))",
+        "INSERT INTO records (姓名, 性别, 年龄, 住院号, 子弹头编号, 采血时间, 科室, 床号, 原始OCR文本, 录入时间, 图片) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         (
             data.get("name", "").strip() or None,
             data.get("gender", "").strip() or None,
@@ -545,7 +552,7 @@ def api_create_record():
             data.get("bed", "").strip() or None,
             data.get("ocr", "").strip() or None,
             data.get("saved") or None,
-            bullet,
+            old_img,
         ),
     )
     db.commit()
@@ -607,12 +614,12 @@ def api_delete_record(record_id):
 @app.route("/api/records/by-bullet/<bullet>", methods=["DELETE"])
 @login_required
 def api_delete_by_bullet(bullet):
-    """Delete a record by bullet number."""
+    """Delete ALL records with this bullet number (handles duplicates)."""
     db = get_db()
     r = db.execute(
-        "SELECT id FROM records WHERE 子弹头编号 = ?", (bullet,)
+        "SELECT COUNT(*) FROM records WHERE 子弹头编号 = ?", (bullet,)
     ).fetchone()
-    if not r:
+    if not r or r[0] == 0:
         return jsonify({"error": "Not found"}), 404
     db.execute("DELETE FROM records WHERE 子弹头编号 = ?", (bullet,))
     db.commit()
