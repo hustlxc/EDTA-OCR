@@ -5,6 +5,11 @@ struct HomeView: View {
     @State private var showSettings = false
     @State private var apiKeyInput = ""
     @FocusState private var isKeyFieldFocused: Bool
+    @State private var showServerSettings = false
+    @State private var serverURLInput = ""
+    @State private var serverUserInput = ""
+    @State private var serverPassInput = ""
+    @State private var isTestingConnection = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -55,6 +60,7 @@ struct HomeView: View {
                             value: state.hasQwenAPIKey ? "已启用 (Qwen VL)" : "未配置",
                             color: state.hasQwenAPIKey ? .purple : .secondary
                         )
+                        serverStatusRow
                     }
                     .padding(18)
                     .background(Color(nsColor: .controlBackgroundColor))
@@ -88,8 +94,29 @@ struct HomeView: View {
                     if showSettings {
                         settingsPanel
                     }
+
+                    Button(showServerSettings ? "收起服务器设置" : "配置服务器连接") {
+                        if showServerSettings {
+                            showServerSettings = false
+                        } else {
+                            serverURLInput = state.serverURL
+                            serverUserInput = state.serverUser
+                            serverPassInput = state.serverPass
+                            showServerSettings = true
+                        }
+                    }
+                    .buttonStyle(.link)
+
+                    if showServerSettings {
+                        serverSettingsPanel
+                    }
                 }
                 .frame(maxWidth: 460, alignment: .leading)
+                .onAppear {
+                    serverURLInput = state.serverURL
+                    serverUserInput = state.serverUser
+                    serverPassInput = state.serverPass
+                }
             }
             .padding(32)
 
@@ -261,5 +288,86 @@ struct HomeView: View {
         let key = apiKeyInput.trimmingCharacters(in: .whitespaces)
         state.saveQwenAPIKey(key)
         showSettings = false
+    }
+
+    // MARK: - Server connection
+
+    private var serverStatusRow: some View {
+        HStack(spacing: 10) {
+            Image(systemName: state.serverConnected ? "network" : "network.slash")
+                .foregroundStyle(state.serverConnected ? .green : .red)
+                .frame(width: 18)
+            Text("服务器连接")
+                .foregroundStyle(.secondary)
+            Spacer()
+            if isTestingConnection {
+                ProgressView().scaleEffect(0.7)
+            } else {
+                Text(state.serverConnected ? "已连接" : "未连接")
+                    .fontWeight(.semibold)
+                    .foregroundStyle(state.serverConnected ? .green : .secondary)
+            }
+        }
+        .font(.system(size: 13))
+    }
+
+    private var serverSettingsPanel: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("服务器连接设置")
+                .font(.system(size: 12, weight: .semibold))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("服务器地址").font(.system(size: 11)).foregroundStyle(.secondary)
+                TextField("http://x.x.x.x:8087", text: $serverURLInput)
+                    .textFieldStyle(.roundedBorder).font(.system(size: 13))
+            }
+
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("用户名").font(.system(size: 11)).foregroundStyle(.secondary)
+                    TextField("admin", text: $serverUserInput)
+                        .textFieldStyle(.roundedBorder).font(.system(size: 13))
+                        .frame(width: 120)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("密码").font(.system(size: 11)).foregroundStyle(.secondary)
+                    SecureField("••••", text: $serverPassInput)
+                        .textFieldStyle(.roundedBorder).font(.system(size: 13))
+                        .frame(width: 140)
+                }
+            }
+
+            HStack(spacing: 8) {
+                Button(action: { saveServerSettings() }) {
+                    Text("保存").frame(width: 60)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(serverURLInput.trimmingCharacters(in: .whitespaces).isEmpty)
+
+                Button(action: { testConnection() }) {
+                    Text(isTestingConnection ? "测试中…" : "测试连接")
+                }
+                .buttonStyle(.bordered)
+                .disabled(isTestingConnection || serverURLInput.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(16)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func saveServerSettings() {
+        state.serverURL = serverURLInput.trimmingCharacters(in: .whitespaces)
+        state.serverUser = serverUserInput.trimmingCharacters(in: .whitespaces)
+        state.serverPass = serverPassInput
+    }
+
+    private func testConnection() {
+        saveServerSettings()
+        isTestingConnection = true
+        Task {
+            _ = await state.testServerConnection()
+            isTestingConnection = false
+        }
     }
 }

@@ -3,12 +3,17 @@ import Foundation
 
 /// Thin HTTP client for the EDTA-OCR web server.
 /// Uploads records and images — fire-and-forget, never blocks the UI.
+/// Reads server URL / credentials from UserDefaults (set via HomeView).
 enum RemoteDB {
-    static let baseURL = "http://172.169.117.199:8087"
-
-    // Credentials must match WEB_USER / WEB_PASS on the server.
-    private static let user = "edta"
-    private static let pass = "91342bb"
+    private static var baseURL: String {
+        UserDefaults.standard.string(forKey: "server_url") ?? "http://172.169.117.199:8087"
+    }
+    private static var user: String {
+        UserDefaults.standard.string(forKey: "server_user") ?? "edta"
+    }
+    private static var pass: String {
+        UserDefaults.standard.string(forKey: "server_pass") ?? "91342bb"
+    }
 
     // MARK: - Helpers
 
@@ -16,6 +21,18 @@ enum RemoteDB {
         let raw = "\(user):\(pass)"
         let encoded = Data(raw.utf8).base64EncodedString()
         return "Basic \(encoded)"
+    }
+
+    /// Quick connectivity check — GET /api/stats with timeout.
+    static func testConnection() async -> Bool {
+        guard let url = URL(string: "\(baseURL)/api/stats") else { return false }
+        var req = URLRequest(url: url)
+        req.setValue(authHeader, forHTTPHeaderField: "Authorization")
+        req.timeoutInterval = 5
+        do {
+            let (_, resp) = try await URLSession.shared.data(for: req)
+            return (resp as? HTTPURLResponse)?.statusCode == 200
+        } catch { return false }
     }
 
     private static func postJSON(_ url: URL, _ body: [String: String]) async -> Int? {

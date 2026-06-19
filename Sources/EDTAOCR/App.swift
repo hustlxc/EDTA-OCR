@@ -49,6 +49,28 @@ class AppState {
     let extractor = FieldExtractor()
     let qwenVL = QwenVLClient()
 
+    // Server connection settings
+    var serverURL: String {
+        get { UserDefaults.standard.string(forKey: "server_url") ?? "http://172.169.117.199:8087" }
+        set { UserDefaults.standard.set(newValue, forKey: "server_url") }
+    }
+    var serverUser: String {
+        get { UserDefaults.standard.string(forKey: "server_user") ?? "edta" }
+        set { UserDefaults.standard.set(newValue, forKey: "server_user") }
+    }
+    var serverPass: String {
+        get { UserDefaults.standard.string(forKey: "server_pass") ?? "91342bb" }
+        set { UserDefaults.standard.set(newValue, forKey: "server_pass") }
+    }
+    @ObservationIgnored
+    var serverConnected: Bool = false
+
+    func testServerConnection() async -> Bool {
+        let ok = await RemoteDB.testConnection()
+        serverConnected = ok
+        return ok
+    }
+
     // Box position settings
     var firstBoxNumber: Int = UserDefaults.standard.integer(forKey: "first_box_number")
     var firstHolePosition: Int = UserDefaults.standard.integer(forKey: "first_hole_position")
